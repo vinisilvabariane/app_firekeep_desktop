@@ -7,6 +7,12 @@ Nota de versionamento: o Firekeep ainda nao chegou na `1.0.0` estavel. As entrad
 
 ## beta.1.8 2026-07-23
 
+- Cada aba do navegador mantem seu proprio `webview` vivo: trocar de aba apenas
+  altera a visibilidade, entao a pagina nao recarrega mais ao alternar guias.
+- Fechar uma aba passa a persistir na hora; a aba fechada nao reaparece ao
+  reabrir o navegador, mesmo que o app seja encerrado logo em seguida.
+- Corrigida a faixa preta quando o painel ou a janela mudam de tamanho: um
+  ajuste de tamanho forca o conteudo do `webview` a se realinhar ao container.
 - Navegador aguarda `dom-ready` antes de chamar a API do `webview`, evitando
   que uma excecao desmonte a interface e deixe a janela preta.
 - Modo web usa `iframe` como fallback; o desktop preserva navegacao completa.
