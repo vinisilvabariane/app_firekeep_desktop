@@ -1,0 +1,695 @@
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Box from "@mui/material/Box";
+import IconButton from "@mui/material/IconButton";
+import Paper from "@mui/material/Paper";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
+import { Icon } from "../../shared/Icon";
+import { fetchBrowserState, saveBrowserState } from "../../shared/api";
+
+const HOME_TAB = { id: "home", title: "Hub", url: "" };
+const EMPTY_BROWSER_STATE = { tabs: [HOME_TAB], activeTabId: HOME_TAB.id, favorites: [] };
+const MAX_BROWSER_TABS = 8;
+
+export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange }) {
+  const webviewRef = useRef(null);
+  const [address, setAddress] = useState("");
+  const [webviewGeneration, setWebviewGeneration] = useState(0);
+  const [browserState, setBrowserState] = useBrowserState();
+  const { tabs, activeTabId, favorites } = browserState;
+  const setTabs = useCallback(
+    (update) =>
+      setBrowserState((current) => ({
+        ...current,
+        tabs: resolveUpdate(update, current.tabs),
+      })),
+    [setBrowserState],
+  );
+  const setActiveTabId = useCallback(
+    (update) =>
+      setBrowserState((current) => ({
+        ...current,
+        activeTabId: resolveUpdate(update, current.activeTabId),
+      })),
+    [setBrowserState],
+  );
+  const setFavorites = useCallback(
+    (update) =>
+      setBrowserState((current) => ({
+        ...current,
+        favorites: resolveUpdate(update, current.favorites),
+      })),
+    [setBrowserState],
+  );
+  const [navState, setNavState] = useState({
+    crashed: false,
+    error: "",
+    loading: false,
+    canGoBack: false,
+    canGoForward: false,
+  });
+
+  const safeTabs = useMemo(() => normalizeTabs(tabs), [tabs]);
+  const activeTab = safeTabs.find((tab) => tab.id === activeTabId) ?? safeTabs[0] ?? HOME_TAB;
+  const activeIsFavorite = useMemo(() => {
+    if (!activeTab.url) return false;
+    return favorites.some((favorite) => sameUrl(favorite.url, activeTab.url));
+  }, [activeTab.url, favorites]);
+  const currentHost = useMemo(() => getHost(address || activeTab.url), [address, activeTab.url]);
+
+  useEffect(() => {
+    if (!safeTabs.some((tab) => tab.id === activeTabId)) {
+      setActiveTabId(safeTabs[0]?.id ?? HOME_TAB.id);
+    }
+  }, [activeTabId, safeTabs, setActiveTabId]);
+
+  const updateTab = useCallback(
+    (id, patch) => {
+      setTabs((current) => normalizeTabs(current).map((tab) => (tab.id === id ? { ...tab, ...patch } : tab)));
+    },
+    [setTabs],
+  );
+
+  const syncNavState = useCallback(() => {
+    const webview = webviewRef.current;
+    setNavState((current) => ({
+      ...current,
+      loading: Boolean(webview?.isLoading?.()),
+      canGoBack: Boolean(webview?.canGoBack?.()),
+      canGoForward: Boolean(webview?.canGoForward?.()),
+    }));
+  }, []);
+
+  useEffect(() => {
+    setAddress(activeTab.url ?? "");
+    setNavState({ crashed: false, error: "", loading: false, canGoBack: false, canGoForward: false });
+    window.requestAnimationFrame(syncNavState);
+  }, [activeTab.id, activeTab.url, syncNavState]);
+
+  const handleLoadStarted = useCallback(() => {
+    setNavState((current) => ({ ...current, crashed: false, error: "", loading: true }));
+    syncNavState();
+  }, [syncNavState]);
+
+  const handleCrashed = useCallback((message = "Esta pagina travou") => {
+    setNavState((current) => ({ ...current, crashed: true, error: message, loading: false }));
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = window.firekeepWindow?.onBrowserOpenUrl?.((url) => {
+      if (!isWebUrl(url)) return;
+      const tab = createTab({ title: getHost(url) || "Nova aba", url });
+      setTabs((current) => appendTab(current, tab));
+      setActiveTabId(tab.id);
+      onOpenChange(true);
+    });
+    return typeof unsubscribe === "function" ? unsubscribe : undefined;
+  }, [onOpenChange, setActiveTabId, setTabs]);
+
+  function navigate(rawValue, { newTab = false } = {}) {
+    const nextUrl = toSearchUrl(rawValue);
+    if (!nextUrl) return;
+
+    onOpenChange(true);
+
+    if (newTab || !activeTab.url) {
+      const tab = createTab({ title: getHost(nextUrl) || "Pesquisa", url: nextUrl });
+      setTabs((current) => appendTab(current, tab));
+      setActiveTabId(tab.id);
+      setAddress(nextUrl);
+      return;
+    }
+
+    setAddress(nextUrl);
+    updateTab(activeTab.id, { url: nextUrl, title: getHost(nextUrl) || "Pesquisa" });
+  }
+
+  function submitAddress(event) {
+    event.preventDefault();
+    navigate(address);
+  }
+
+  function addTab(url = "") {
+    const tab = createTab({ title: url ? getHost(url) || "Nova aba" : "Hub", url });
+    setTabs((current) => appendTab(current, tab));
+    setActiveTabId(tab.id);
+    onOpenChange(true);
+  }
+
+  function closeTab(id) {
+    const list = normalizeTabs(browserState.tabs);
+    const nextTabs = list.filter((tab) => tab.id !== id);
+
+    if (!nextTabs.length) {
+      setBrowserState((current) => ({ ...current, tabs: [HOME_TAB], activeTabId: HOME_TAB.id }));
+      onOpenChange(false);
+      setNavState((current) => ({ ...current, loading: false }));
+      return;
+    }
+
+    const closingActiveTab = id === browserState.activeTabId;
+    const closingIndex = list.findIndex((tab) => tab.id === id);
+    const nextActiveTabId = closingActiveTab
+      ? nextTabs[Math.max(0, closingIndex - 1)]?.id ?? nextTabs[0].id
+      : browserState.activeTabId;
+
+    setBrowserState((current) => ({ ...current, tabs: nextTabs, activeTabId: nextActiveTabId }));
+  }
+
+  function toggleFavorite() {
+    if (!activeTab.url) return;
+    setFavorites((current) => {
+      if (current.some((favorite) => sameUrl(favorite.url, activeTab.url))) {
+        return current.filter((favorite) => !sameUrl(favorite.url, activeTab.url));
+      }
+      return [
+        ...current,
+        {
+          id: createId(),
+          label: cleanTitle(activeTab.title) || getHost(activeTab.url) || "Favorito",
+          url: activeTab.url,
+        },
+      ];
+    });
+  }
+
+  function removeFavorite(id) {
+    setFavorites((current) => current.filter((favorite) => favorite.id !== id));
+  }
+
+  function openFavorite(favorite, newTab = false) {
+    navigate(favorite.url, { newTab });
+  }
+
+  function closeBrowser() {
+    onOpenChange(false);
+    setNavState((current) => ({ ...current, loading: false }));
+  }
+
+  return (
+    <>
+      {open ? (
+        <Paper elevation={14} className="miniBrowser">
+          <Box className="miniBrowserTabs" role="tablist" aria-label="Abas do navegador">
+            {safeTabs.map((tab) => (
+              <Box
+                key={tab.id}
+                component="button"
+                type="button"
+                role="tab"
+                className={tab.id === activeTab.id ? "miniBrowserTab isActive" : "miniBrowserTab"}
+                onClick={() => setActiveTabId(tab.id)}
+              >
+                <Icon name={tab.url ? "search" : "folder"} fontSize="small" />
+                <span>{tab.title || (tab.url ? getHost(tab.url) : "Hub")}</span>
+                <IconButton
+                  size="small"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    closeTab(tab.id);
+                  }}
+                  aria-label="Fechar aba"
+                >
+                  <Icon name="close" fontSize="small" />
+                </IconButton>
+              </Box>
+            ))}
+            <Tooltip title="Nova aba">
+              <IconButton className="miniBrowserAddTab" size="small" onClick={() => addTab()} aria-label="Nova aba">
+                <Icon name="add" fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+
+          <Box className="miniBrowserChrome">
+            <Box className="miniBrowserNav">
+              <Tooltip title="Voltar">
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={!navState.canGoBack}
+                    onClick={() => webviewRef.current?.goBack()}
+                    aria-label="Voltar"
+                  >
+                    <Icon name="chevronLeft" fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title="Avancar">
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={!navState.canGoForward}
+                    onClick={() => webviewRef.current?.goForward()}
+                    aria-label="Avancar"
+                  >
+                    <Icon name="chevronRight" fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title={navState.loading ? "Parar" : "Recarregar"}>
+                <IconButton
+                  size="small"
+                  disabled={!activeTab.url}
+                  onClick={() => {
+                    if (navState.loading) {
+                      webviewRef.current?.stop();
+                      return;
+                    }
+                    webviewRef.current?.reload();
+                  }}
+                  aria-label={navState.loading ? "Parar carregamento" : "Recarregar pagina"}
+                >
+                  <Icon name={navState.loading ? "close" : "refresh"} fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+
+            <Box component="form" className="miniBrowserAddress" onSubmit={submitAddress}>
+              <Icon name="search" fontSize="small" />
+              <input
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+                placeholder="Endereco ou pesquisa"
+                aria-label="Endereco ou pesquisa"
+              />
+            </Box>
+
+            <Box className="miniBrowserMeta">
+              <Tooltip title={activeIsFavorite ? "Remover favorito" : "Favoritar aba"}>
+                <IconButton
+                  size="small"
+                  disabled={!activeTab.url}
+                  onClick={toggleFavorite}
+                  aria-label={activeIsFavorite ? "Remover favorito" : "Favoritar aba"}
+                >
+                  <Icon name={activeIsFavorite ? "starFilled" : "star"} fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Typography variant="caption" noWrap>
+                {currentHost || activeTab.title || "Hub"}
+              </Typography>
+              <Tooltip title="Fechar navegador">
+                <IconButton size="small" onClick={closeBrowser} aria-label="Fechar navegador">
+                  <Icon name="close" fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+
+          <Box className={navState.loading ? "miniBrowserProgress isLoading" : "miniBrowserProgress"} />
+          <Box className="miniBrowserBody">
+            {activeTab.url ? (
+              <ActiveWebview
+                key={webviewGeneration}
+                tab={activeTab}
+                webviewRef={webviewRef}
+                onAddressChange={setAddress}
+                onCrashed={handleCrashed}
+                onLoadStarted={handleLoadStarted}
+                onNavUpdate={syncNavState}
+                onTabUpdate={updateTab}
+              />
+            ) : (
+              <BrowserHub
+                favorites={favorites}
+                onSearch={navigate}
+                onOpenFavorite={openFavorite}
+                onRemoveFavorite={removeFavorite}
+              />
+            )}
+            {navState.crashed ? (
+              <Box className="miniBrowserCrash">
+                <Typography variant="subtitle2" fontWeight={900}>
+                  {navState.error || "Esta pagina travou"}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Recarregue a aba, feche esta aba ou abra outra pesquisa.
+                </Typography>
+                <IconButton
+                  className="glassButton"
+                  onClick={() => {
+                    setNavState((current) => ({ ...current, crashed: false, error: "" }));
+                    setWebviewGeneration((current) => current + 1);
+                  }}
+                  aria-label="Recarregar aba"
+                >
+                  <Icon name="refresh" />
+                </IconButton>
+              </Box>
+            ) : null}
+          </Box>
+        </Paper>
+      ) : null}
+
+    </>
+  );
+});
+
+function ActiveWebview({ tab, webviewRef, onAddressChange, onCrashed, onLoadStarted, onNavUpdate, onTabUpdate }) {
+  const localRef = useRef(null);
+  const initialUrlRef = useRef(tab.url);
+
+  useEffect(() => {
+    const webview = localRef.current;
+    webviewRef.current = webview;
+    if (!webview) return undefined;
+
+    function syncUrl() {
+      const url = webview.getURL?.() ?? tab.url;
+      onAddressChange(url);
+      onTabUpdate(tab.id, { url });
+      onNavUpdate();
+    }
+
+    function syncTitle(event) {
+      onTabUpdate(tab.id, { title: cleanTitle(event.title) || getHost(webview.getURL?.() ?? tab.url) || "Aba" });
+    }
+
+    function syncFail(event) {
+      if (event.errorCode === -3) return;
+      onCrashed("Falha ao carregar a pagina");
+    }
+
+    function syncCrash(event) {
+      const reason = event?.reason;
+      onCrashed(reason === "oom" ? "A pagina ficou sem memoria" : "Esta pagina travou");
+    }
+
+    webview.addEventListener("did-start-loading", onLoadStarted);
+    webview.addEventListener("did-stop-loading", onNavUpdate);
+    webview.addEventListener("did-finish-load", onNavUpdate);
+    webview.addEventListener("did-fail-load", syncFail);
+    webview.addEventListener("did-navigate", syncUrl);
+    webview.addEventListener("did-navigate-in-page", syncUrl);
+    webview.addEventListener("page-title-updated", syncTitle);
+    webview.addEventListener("render-process-gone", syncCrash);
+
+    return () => {
+      webview.removeEventListener("did-start-loading", onLoadStarted);
+      webview.removeEventListener("did-stop-loading", onNavUpdate);
+      webview.removeEventListener("did-finish-load", onNavUpdate);
+      webview.removeEventListener("did-fail-load", syncFail);
+      webview.removeEventListener("did-navigate", syncUrl);
+      webview.removeEventListener("did-navigate-in-page", syncUrl);
+      webview.removeEventListener("page-title-updated", syncTitle);
+      webview.removeEventListener("render-process-gone", syncCrash);
+      if (webviewRef.current === webview) webviewRef.current = null;
+    };
+  }, [onAddressChange, onCrashed, onLoadStarted, onNavUpdate, onTabUpdate, tab.id, tab.url, webviewRef]);
+
+  useEffect(() => {
+    const webview = localRef.current;
+    if (!webview || !tab.url) return;
+
+    // Trocar de aba apenas troca a URL: mantemos um unico processo de pagina
+    // vivo, em vez de criar um webview por aba.
+    const currentUrl = webview.getURL?.() ?? "";
+    if (normalizeUrl(currentUrl) !== normalizeUrl(tab.url)) {
+      webview.loadURL?.(tab.url);
+    }
+  }, [tab.url]);
+
+  return (
+    <webview
+      ref={localRef}
+      className="miniBrowserWebview isActive"
+      src={initialUrlRef.current}
+      partition="persist:firekeep-search"
+    />
+  );
+}
+
+function useBrowserState() {
+  const [state, setState] = useState(readLegacyBrowserState);
+  const [hydrated, setHydrated] = useState(false);
+  const stateRef = useRef(state);
+  const mutationVersionRef = useRef(0);
+
+  const updateState = useCallback((update) => {
+    setState((current) => {
+      const next = normalizeBrowserState(resolveUpdate(update, current));
+      stateRef.current = next;
+      mutationVersionRef.current += 1;
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const versionAtStart = mutationVersionRef.current;
+
+    async function hydrate() {
+      try {
+        const result = await fetchBrowserState();
+        if (cancelled) return;
+
+        if (result.browserState && mutationVersionRef.current === versionAtStart) {
+          const next = normalizeBrowserState(result.browserState);
+          stateRef.current = next;
+          setState(next);
+        } else {
+          await saveBrowserState(stateRef.current);
+        }
+      } catch {
+        // Mantem o estado local e tenta salva-lo novamente na proxima alteracao.
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    }
+
+    hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    persistLegacyBrowserState(state);
+    if (!hydrated) return undefined;
+
+    const timer = window.setTimeout(() => {
+      saveBrowserState(state).catch(() => {});
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [hydrated, state]);
+
+  return [state, updateState];
+}
+
+function readLegacyBrowserState() {
+  return normalizeBrowserState({
+    tabs: readLocalJson("firekeep:browserTabs", EMPTY_BROWSER_STATE.tabs),
+    activeTabId: readLocalJson("firekeep:activeBrowserTab", EMPTY_BROWSER_STATE.activeTabId),
+    favorites: readLocalJson("firekeep:browserFavorites", EMPTY_BROWSER_STATE.favorites),
+  });
+}
+
+function persistLegacyBrowserState(state) {
+  try {
+    localStorage.setItem("firekeep:browserTabs", JSON.stringify(state.tabs));
+    localStorage.setItem("firekeep:activeBrowserTab", JSON.stringify(state.activeTabId));
+    localStorage.setItem("firekeep:browserFavorites", JSON.stringify(state.favorites));
+  } catch {
+    // O arquivo em %APPDATA% continua sendo a fonte persistente no desktop.
+  }
+}
+
+function readLocalJson(key, fallback) {
+  try {
+    const stored = localStorage.getItem(key);
+    return stored === null ? fallback : JSON.parse(stored);
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeBrowserState(value) {
+  const input = value && typeof value === "object" && !Array.isArray(value) ? value : EMPTY_BROWSER_STATE;
+  const tabs = normalizeTabs(input.tabs);
+  const favorites = normalizeFavorites(input.favorites);
+  const activeTabId = tabs.some((tab) => tab.id === input.activeTabId) ? input.activeTabId : tabs[0].id;
+  return { tabs, activeTabId, favorites };
+}
+
+function normalizeFavorites(value) {
+  const list = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  return list
+    .filter((favorite) => favorite && isWebUrl(favorite.url))
+    .map((favorite, index) => ({
+      id: typeof favorite.id === "string" && favorite.id ? favorite.id : `favorite-${index}`,
+      label:
+        typeof favorite.label === "string" && favorite.label.trim()
+          ? favorite.label.trim()
+          : getHost(favorite.url) || "Favorito",
+      url: favorite.url.trim(),
+    }))
+    .filter((favorite) => {
+      const url = normalizeUrl(favorite.url);
+      if (seen.has(url)) return false;
+      seen.add(url);
+      return true;
+    })
+    .slice(0, 100);
+}
+
+function resolveUpdate(update, current) {
+  return typeof update === "function" ? update(current) : update;
+}
+
+function BrowserHub({ favorites, onSearch, onOpenFavorite, onRemoveFavorite }) {
+  const [query, setQuery] = useState("");
+
+  function submitSearch(event) {
+    event.preventDefault();
+    onSearch(query);
+  }
+
+  return (
+    <Box className="miniBrowserHub">
+      <Box component="form" className="browserHubSearch" onSubmit={submitSearch}>
+        <Typography variant="overline">Pesquisa</Typography>
+        <Typography variant="h6">Para onde vamos?</Typography>
+        <Box className="browserHubSearchField">
+          <Icon name="search" fontSize="small" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Pesquisar ou colar um endereco"
+            aria-label="Pesquisar ou colar um endereco"
+            autoFocus
+          />
+          <IconButton type="submit" size="small" disabled={!query.trim()} aria-label="Pesquisar">
+            <Icon name="chevronRight" fontSize="small" />
+          </IconButton>
+        </Box>
+      </Box>
+
+      <Box className="browserFavoritesShelf">
+        <Box className="browserFavoritesHeading">
+          <Typography variant="caption">Favoritos</Typography>
+          <Typography variant="caption" color="text.secondary">
+            {favorites.length ? `${favorites.length} salvos` : "Salve paginas pela estrela"}
+          </Typography>
+        </Box>
+        {favorites.length ? (
+          <Box className="browserFavoriteStrip">
+            {favorites.map((favorite) => (
+              <Box key={favorite.id} className="browserFavoriteChip">
+                <button
+                  type="button"
+                  onClick={() => onOpenFavorite(favorite)}
+                  onAuxClick={() => onOpenFavorite(favorite, true)}
+                  title={favorite.url}
+                >
+                  <span>{favorite.label.slice(0, 1).toUpperCase()}</span>
+                  <strong>{favorite.label}</strong>
+                </button>
+                <Tooltip title="Remover favorito">
+                  <IconButton size="small" onClick={() => onRemoveFavorite(favorite.id)} aria-label="Remover favorito">
+                    <Icon name="close" fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            ))}
+          </Box>
+        ) : null}
+      </Box>
+    </Box>
+  );
+}
+
+function normalizeTabs(value) {
+  const list = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  const tabs = list
+    .filter((tab) => tab && typeof tab.id === "string" && !seen.has(tab.id) && seen.add(tab.id))
+    .slice(0, MAX_BROWSER_TABS)
+    .map((tab) => ({
+      id: tab.id,
+      title: typeof tab.title === "string" ? tab.title : "Aba",
+      url: typeof tab.url === "string" ? tab.url : "",
+    }));
+  return tabs.length ? tabs : [HOME_TAB];
+}
+
+function appendTab(current, tab) {
+  return [...normalizeTabs(current).slice(-(MAX_BROWSER_TABS - 1)), tab];
+}
+
+function createTab({ title, url }) {
+  return {
+    id: createId(),
+    title,
+    url,
+  };
+}
+
+function createId() {
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function toSearchUrl(value) {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return "";
+
+  if (/^https?:\/\//i.test(text)) {
+    return text;
+  }
+
+  if (/^[\w.-]+\.[a-z]{2,}(?:[/:?#].*)?$/i.test(text) && !/\s/.test(text)) {
+    return `https://${text}`;
+  }
+
+  const shortcutUrl = getSearchShortcutUrl(text);
+  if (shortcutUrl) return shortcutUrl;
+
+  return `https://duckduckgo.com/html/?q=${encodeURIComponent(text)}`;
+}
+
+function getSearchShortcutUrl(value) {
+  const key = value.toLowerCase();
+  const shortcuts = {
+    google: "https://www.google.com",
+    github: "https://github.com",
+    spotify: "https://open.spotify.com",
+  };
+  return shortcuts[key] ?? "";
+}
+
+function isWebUrl(value) {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function getHost(value) {
+  if (!value) return "";
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+function sameUrl(left, right) {
+  return normalizeUrl(left) === normalizeUrl(right);
+}
+
+function normalizeUrl(value) {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return value;
+  }
+}
+
+function cleanTitle(value) {
+  return typeof value === "string" ? value.replace(/\s+-\s+Google.*$/i, "").trim() : "";
+}
