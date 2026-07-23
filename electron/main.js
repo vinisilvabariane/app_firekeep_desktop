@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeImage, shell } from "electron";
+import { app, BrowserWindow, ipcMain, nativeImage, nativeTheme, session, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
@@ -17,12 +17,9 @@ let mainWindow;
 let mainUrl;
 let recoveryPending = false;
 
-// Conteudo externo em webviews e drivers graficos instaveis podem derrubar a
-// composicao inteira no Windows e deixar a janela preta. Priorizamos a
-// estabilidade; quem precisar de aceleracao pode reativa-la explicitamente.
-const shouldDisableGpu =
-  process.env.FIREKEEP_DISABLE_GPU === "1" ||
-  (process.platform === "win32" && process.env.FIREKEEP_USE_GPU !== "1");
+// Monaco, xterm, GIFs e superficies translucidas dependem da composicao da GPU.
+// O fallback por software continua disponivel para drivers problematicos.
+const shouldDisableGpu = process.env.FIREKEEP_DISABLE_GPU === "1";
 if (shouldDisableGpu) {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch("disable-gpu");
@@ -49,6 +46,8 @@ app.on("web-contents-created", (_event, contents) => {
 });
 
 async function createWindow() {
+  nativeTheme.themeSource = "dark";
+  await configureBrowserSession();
   const windowIcon = nativeImage.createFromPath(appIcon);
 
   firekeepServer = await createFirekeepServerWorker({
@@ -116,6 +115,19 @@ async function createWindow() {
   if (isDev && process.env.FIREKEEP_DEVTOOLS === "1") {
     mainWindow.webContents.openDevTools({ mode: "detach" });
   }
+}
+
+async function configureBrowserSession() {
+  const browserSession = session.fromPartition("persist:firekeep-search");
+  await browserSession.cookies
+    .set({
+      url: "https://www.google.com",
+      name: "PREF",
+      value: "f6=40000000",
+      secure: true,
+      sameSite: "lax",
+    })
+    .catch(() => {});
 }
 
 function createFirekeepServerWorker(options) {

@@ -69,7 +69,7 @@ export function VisualPanel({
         <Box className="brightnessControl">
           <Slider
             size="small"
-            min={20}
+            min={0}
             max={100}
             step={5}
             value={visualBrightness}

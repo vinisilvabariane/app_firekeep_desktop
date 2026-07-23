@@ -6,6 +6,8 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { Icon } from "../../shared/Icon";
 import { fetchBrowserState, saveBrowserState } from "../../shared/api";
+import { toSearchUrl } from "./browser-navigation";
+import { callWebview, readWebviewBoolean, readWebviewUrl } from "./webview-api";
 
 const HOME_TAB = { id: "home", title: "Hub", url: "" };
 const EMPTY_BROWSER_STATE = { tabs: [HOME_TAB], activeTabId: HOME_TAB.id, favorites: [] };
@@ -13,9 +15,11 @@ const MAX_BROWSER_TABS = 8;
 
 export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange }) {
   const webviewRef = useRef(null);
+  const bodyRef = useRef(null);
   const [address, setAddress] = useState("");
   const [webviewGeneration, setWebviewGeneration] = useState(0);
   const [browserState, setBrowserState] = useBrowserState();
+  const supportsElectronWebview = Boolean(globalThis.window?.firekeepWindow);
   const { tabs, activeTabId, favorites } = browserState;
   const setTabs = useCallback(
     (update) =>
@@ -74,9 +78,9 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange })
     const webview = webviewRef.current;
     setNavState((current) => ({
       ...current,
-      loading: Boolean(webview?.isLoading?.()),
-      canGoBack: Boolean(webview?.canGoBack?.()),
-      canGoForward: Boolean(webview?.canGoForward?.()),
+      loading: readWebviewBoolean(webview, "isLoading"),
+      canGoBack: readWebviewBoolean(webview, "canGoBack"),
+      canGoForward: readWebviewBoolean(webview, "canGoForward"),
     }));
   }, []);
 
@@ -85,6 +89,36 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange })
     setNavState({ crashed: false, error: "", loading: false, canGoBack: false, canGoForward: false });
     window.requestAnimationFrame(syncNavState);
   }, [activeTab.id, activeTab.url, syncNavState]);
+
+  // O Electron nem sempre remede o conteudo do webview quando o container muda
+  // de tamanho (ex.: maximizar a janela ou abrir o terminal), deixando uma
+  // faixa preta. Um empurrao de 1px na altura forca o guest a se realinhar.
+  useEffect(() => {
+    if (!supportsElectronWebview) return undefined;
+    const body = bodyRef.current;
+    if (!body || typeof ResizeObserver === "undefined") return undefined;
+
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      window.cancelAnimationFrame(frame);
+      const views = body.querySelectorAll(".miniBrowserWebview");
+      views.forEach((view) => {
+        const height = view.offsetHeight;
+        if (height) view.style.height = `${Math.max(1, height - 1)}px`;
+      });
+      frame = window.requestAnimationFrame(() => {
+        views.forEach((view) => {
+          view.style.height = "";
+        });
+      });
+    });
+
+    observer.observe(body);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [supportsElectronWebview]);
 
   const handleLoadStarted = useCallback(() => {
     setNavState((current) => ({ ...current, crashed: false, error: "", loading: true }));
@@ -140,20 +174,25 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange })
     const list = normalizeTabs(browserState.tabs);
     const nextTabs = list.filter((tab) => tab.id !== id);
 
+    let nextState;
     if (!nextTabs.length) {
-      setBrowserState((current) => ({ ...current, tabs: [HOME_TAB], activeTabId: HOME_TAB.id }));
+      nextState = { ...browserState, tabs: [HOME_TAB], activeTabId: HOME_TAB.id };
+      setBrowserState(nextState);
       onOpenChange(false);
       setNavState((current) => ({ ...current, loading: false }));
-      return;
+    } else {
+      const closingActiveTab = id === browserState.activeTabId;
+      const closingIndex = list.findIndex((tab) => tab.id === id);
+      const nextActiveTabId = closingActiveTab
+        ? nextTabs[Math.max(0, closingIndex - 1)]?.id ?? nextTabs[0].id
+        : browserState.activeTabId;
+      nextState = { ...browserState, tabs: nextTabs, activeTabId: nextActiveTabId };
+      setBrowserState(nextState);
     }
 
-    const closingActiveTab = id === browserState.activeTabId;
-    const closingIndex = list.findIndex((tab) => tab.id === id);
-    const nextActiveTabId = closingActiveTab
-      ? nextTabs[Math.max(0, closingIndex - 1)]?.id ?? nextTabs[0].id
-      : browserState.activeTabId;
-
-    setBrowserState((current) => ({ ...current, tabs: nextTabs, activeTabId: nextActiveTabId }));
+    // Persiste na hora: fechar a aba precisa valer mesmo se o app fechar logo
+    // em seguida, senao o debounce perde a alteracao e a aba "volta".
+    saveBrowserState(nextState).catch(() => {});
   }
 
   function toggleFavorite() {
@@ -194,11 +233,16 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange })
             {safeTabs.map((tab) => (
               <Box
                 key={tab.id}
-                component="button"
-                type="button"
                 role="tab"
+                tabIndex={0}
                 className={tab.id === activeTab.id ? "miniBrowserTab isActive" : "miniBrowserTab"}
                 onClick={() => setActiveTabId(tab.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setActiveTabId(tab.id);
+                  }
+                }}
               >
                 <Icon name={tab.url ? "search" : "folder"} fontSize="small" />
                 <span>{tab.title || (tab.url ? getHost(tab.url) : "Hub")}</span>
@@ -228,7 +272,7 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange })
                   <IconButton
                     size="small"
                     disabled={!navState.canGoBack}
-                    onClick={() => webviewRef.current?.goBack()}
+                    onClick={() => callWebview(webviewRef.current, "goBack")}
                     aria-label="Voltar"
                   >
                     <Icon name="chevronLeft" fontSize="small" />
@@ -240,7 +284,7 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange })
                   <IconButton
                     size="small"
                     disabled={!navState.canGoForward}
-                    onClick={() => webviewRef.current?.goForward()}
+                    onClick={() => callWebview(webviewRef.current, "goForward")}
                     aria-label="Avancar"
                   >
                     <Icon name="chevronRight" fontSize="small" />
@@ -252,11 +296,15 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange })
                   size="small"
                   disabled={!activeTab.url}
                   onClick={() => {
-                    if (navState.loading) {
-                      webviewRef.current?.stop();
+                    if (!supportsElectronWebview) {
+                      setWebviewGeneration((current) => current + 1);
                       return;
                     }
-                    webviewRef.current?.reload();
+                    if (navState.loading) {
+                      callWebview(webviewRef.current, "stop");
+                      return;
+                    }
+                    callWebview(webviewRef.current, "reload");
                   }}
                   aria-label={navState.loading ? "Parar carregamento" : "Recarregar pagina"}
                 >
@@ -298,17 +346,39 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange })
           </Box>
 
           <Box className={navState.loading ? "miniBrowserProgress isLoading" : "miniBrowserProgress"} />
-          <Box className="miniBrowserBody">
-            {activeTab.url ? (
-              <ActiveWebview
+          <Box className="miniBrowserBody" ref={bodyRef}>
+            {supportsElectronWebview ? (
+              <>
+                {safeTabs
+                  .filter((tab) => tab.url)
+                  .map((tab) => (
+                    <PersistentWebview
+                      key={tab.id}
+                      tab={tab}
+                      isActive={tab.id === activeTab.id}
+                      webviewRef={webviewRef}
+                      onAddressChange={setAddress}
+                      onCrashed={handleCrashed}
+                      onLoadStarted={handleLoadStarted}
+                      onNavUpdate={syncNavState}
+                      onTabUpdate={updateTab}
+                    />
+                  ))}
+                {activeTab.url ? null : (
+                  <BrowserHub
+                    favorites={favorites}
+                    onSearch={navigate}
+                    onOpenFavorite={openFavorite}
+                    onRemoveFavorite={removeFavorite}
+                  />
+                )}
+              </>
+            ) : activeTab.url ? (
+              <WebBrowserFrame
                 key={webviewGeneration}
                 tab={activeTab}
-                webviewRef={webviewRef}
-                onAddressChange={setAddress}
-                onCrashed={handleCrashed}
                 onLoadStarted={handleLoadStarted}
                 onNavUpdate={syncNavState}
-                onTabUpdate={updateTab}
               />
             ) : (
               <BrowserHub
@@ -330,7 +400,11 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange })
                   className="glassButton"
                   onClick={() => {
                     setNavState((current) => ({ ...current, crashed: false, error: "" }));
-                    setWebviewGeneration((current) => current + 1);
+                    if (supportsElectronWebview) {
+                      callWebview(webviewRef.current, "reload");
+                    } else {
+                      setWebviewGeneration((current) => current + 1);
+                    }
                   }}
                   aria-label="Recarregar aba"
                 >
@@ -346,39 +420,77 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange })
   );
 });
 
-function ActiveWebview({ tab, webviewRef, onAddressChange, onCrashed, onLoadStarted, onNavUpdate, onTabUpdate }) {
+// Cada aba mantem seu proprio webview vivo. Trocar de aba so muda a
+// visibilidade (CSS), entao a pagina nao recarrega e o processo continua ativo.
+function PersistentWebview({ tab, isActive, webviewRef, onAddressChange, onCrashed, onLoadStarted, onNavUpdate, onTabUpdate }) {
   const localRef = useRef(null);
   const initialUrlRef = useRef(tab.url);
+  const readyRef = useRef(false);
 
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
+  const tabIdRef = useRef(tab.id);
+  tabIdRef.current = tab.id;
+  const tabUrlRef = useRef(tab.url);
+  tabUrlRef.current = tab.url;
+  const handlersRef = useRef({});
+  handlersRef.current = { onAddressChange, onCrashed, onLoadStarted, onNavUpdate, onTabUpdate };
+
+  // Liga os eventos uma unica vez; os handlers leem os refs para pegar sempre
+  // o estado atual sem religar os listeners a cada render.
   useEffect(() => {
     const webview = localRef.current;
-    webviewRef.current = webview;
     if (!webview) return undefined;
 
+    const active = () => isActiveRef.current;
+    const handlers = () => handlersRef.current;
+
     function syncUrl() {
-      const url = webview.getURL?.() ?? tab.url;
-      onAddressChange(url);
-      onTabUpdate(tab.id, { url });
-      onNavUpdate();
+      const url = readWebviewUrl(webview, tabUrlRef.current);
+      handlers().onTabUpdate(tabIdRef.current, { url });
+      if (active()) {
+        handlers().onAddressChange(url);
+        handlers().onNavUpdate();
+      }
     }
 
     function syncTitle(event) {
-      onTabUpdate(tab.id, { title: cleanTitle(event.title) || getHost(webview.getURL?.() ?? tab.url) || "Aba" });
+      const url = readWebviewUrl(webview, tabUrlRef.current);
+      handlers().onTabUpdate(tabIdRef.current, { title: cleanTitle(event.title) || getHost(url) || "Aba" });
     }
 
     function syncFail(event) {
       if (event.errorCode === -3) return;
-      onCrashed("Falha ao carregar a pagina");
+      if (active()) handlers().onCrashed("Falha ao carregar a pagina");
     }
 
     function syncCrash(event) {
+      if (!active()) return;
       const reason = event?.reason;
-      onCrashed(reason === "oom" ? "A pagina ficou sem memoria" : "Esta pagina travou");
+      handlers().onCrashed(reason === "oom" ? "A pagina ficou sem memoria" : "Esta pagina travou");
     }
 
-    webview.addEventListener("did-start-loading", onLoadStarted);
-    webview.addEventListener("did-stop-loading", onNavUpdate);
-    webview.addEventListener("did-finish-load", onNavUpdate);
+    function loadStarted() {
+      if (active()) handlers().onLoadStarted();
+    }
+
+    function navUpdate() {
+      if (active()) handlers().onNavUpdate();
+    }
+
+    function syncReady() {
+      readyRef.current = true;
+      const currentUrl = readWebviewUrl(webview);
+      if (normalizeUrl(currentUrl) !== normalizeUrl(tabUrlRef.current)) {
+        callWebview(webview, "loadURL", tabUrlRef.current);
+      }
+      if (active()) handlers().onNavUpdate();
+    }
+
+    webview.addEventListener("dom-ready", syncReady);
+    webview.addEventListener("did-start-loading", loadStarted);
+    webview.addEventListener("did-stop-loading", navUpdate);
+    webview.addEventListener("did-finish-load", navUpdate);
     webview.addEventListener("did-fail-load", syncFail);
     webview.addEventListener("did-navigate", syncUrl);
     webview.addEventListener("did-navigate-in-page", syncUrl);
@@ -386,36 +498,74 @@ function ActiveWebview({ tab, webviewRef, onAddressChange, onCrashed, onLoadStar
     webview.addEventListener("render-process-gone", syncCrash);
 
     return () => {
-      webview.removeEventListener("did-start-loading", onLoadStarted);
-      webview.removeEventListener("did-stop-loading", onNavUpdate);
-      webview.removeEventListener("did-finish-load", onNavUpdate);
+      webview.removeEventListener("dom-ready", syncReady);
+      webview.removeEventListener("did-start-loading", loadStarted);
+      webview.removeEventListener("did-stop-loading", navUpdate);
+      webview.removeEventListener("did-finish-load", navUpdate);
       webview.removeEventListener("did-fail-load", syncFail);
       webview.removeEventListener("did-navigate", syncUrl);
       webview.removeEventListener("did-navigate-in-page", syncUrl);
       webview.removeEventListener("page-title-updated", syncTitle);
       webview.removeEventListener("render-process-gone", syncCrash);
-      if (webviewRef.current === webview) webviewRef.current = null;
     };
-  }, [onAddressChange, onCrashed, onLoadStarted, onNavUpdate, onTabUpdate, tab.id, tab.url, webviewRef]);
+  }, []);
 
+  // Recarrega apenas quando a URL da aba muda de fato (barra de endereco),
+  // nao quando o usuario apenas troca de aba.
   useEffect(() => {
     const webview = localRef.current;
-    if (!webview || !tab.url) return;
+    if (!webview || !tab.url || !readyRef.current) return;
 
-    // Trocar de aba apenas troca a URL: mantemos um unico processo de pagina
-    // vivo, em vez de criar um webview por aba.
-    const currentUrl = webview.getURL?.() ?? "";
+    const currentUrl = readWebviewUrl(webview);
     if (normalizeUrl(currentUrl) !== normalizeUrl(tab.url)) {
-      webview.loadURL?.(tab.url);
+      callWebview(webview, "loadURL", tab.url);
     }
   }, [tab.url]);
+
+  // A aba ativa vira alvo dos botoes de navegacao e recebe um ajuste de tamanho.
+  useEffect(() => {
+    if (!isActive) return undefined;
+    const webview = localRef.current;
+    webviewRef.current = webview;
+    handlersRef.current.onNavUpdate();
+    nudgeWebviewSize(webview);
+    return () => {
+      if (webviewRef.current === webview) webviewRef.current = null;
+    };
+  }, [isActive, webviewRef]);
 
   return (
     <webview
       ref={localRef}
-      className="miniBrowserWebview isActive"
+      className={isActive ? "miniBrowserWebview isActive" : "miniBrowserWebview"}
       src={initialUrlRef.current}
       partition="persist:firekeep-search"
+    />
+  );
+}
+
+function nudgeWebviewSize(webview) {
+  if (!webview) return;
+  const height = webview.offsetHeight;
+  if (!height) return;
+  webview.style.height = `${Math.max(1, height - 1)}px`;
+  window.requestAnimationFrame(() => {
+    webview.style.height = "";
+  });
+}
+
+function WebBrowserFrame({ tab, onLoadStarted, onNavUpdate }) {
+  useEffect(() => {
+    onLoadStarted();
+  }, [onLoadStarted, tab.url]);
+
+  return (
+    <iframe
+      className="miniBrowserWebview isActive"
+      src={tab.url}
+      title={tab.title || getHost(tab.url) || "Navegador"}
+      onLoad={onNavUpdate}
+      referrerPolicy="strict-origin-when-cross-origin"
     />
   );
 }
@@ -628,34 +778,6 @@ function createTab({ title, url }) {
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function toSearchUrl(value) {
-  const text = typeof value === "string" ? value.trim() : "";
-  if (!text) return "";
-
-  if (/^https?:\/\//i.test(text)) {
-    return text;
-  }
-
-  if (/^[\w.-]+\.[a-z]{2,}(?:[/:?#].*)?$/i.test(text) && !/\s/.test(text)) {
-    return `https://${text}`;
-  }
-
-  const shortcutUrl = getSearchShortcutUrl(text);
-  if (shortcutUrl) return shortcutUrl;
-
-  return `https://duckduckgo.com/html/?q=${encodeURIComponent(text)}`;
-}
-
-function getSearchShortcutUrl(value) {
-  const key = value.toLowerCase();
-  const shortcuts = {
-    google: "https://www.google.com",
-    github: "https://github.com",
-    spotify: "https://open.spotify.com",
-  };
-  return shortcuts[key] ?? "";
 }
 
 function isWebUrl(value) {

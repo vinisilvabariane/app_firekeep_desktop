@@ -6,8 +6,6 @@ import path from "node:path";
 // para a pasta de dados do usuario. Cada arquivo so e copiado se ainda nao
 // existir — dados de quem ja usa o app nunca sao sobrescritos.
 export async function seedInitialData({ root, storageRoot }) {
-  if (path.resolve(root) === path.resolve(storageRoot)) return; // dev: dados ja vivem no root
-
   const seedDir = path.join(root, "seed");
   const seedFiles = await readdir(seedDir).catch(() => []);
   if (!seedFiles.length) return;

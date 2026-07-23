@@ -4,6 +4,10 @@ import { WebSocket, WebSocketServer } from "ws";
 import { assertDirectory } from "./fs-service.js";
 import { clampNumber, toMessage } from "./utils.js";
 
+const MAX_OUTPUT_BATCH = 64 * 1024;
+const MAX_QUEUED_OUTPUT = 1024 * 1024;
+const OUTPUT_OMITTED_NOTICE = "\r\n[saida excessiva omitida]\r\n";
+
 export function createTerminalGateway({ httpServer, root }) {
   const terminalServer = new WebSocketServer({ noServer: true });
   const terminals = new Set();
@@ -66,21 +70,36 @@ export function createTerminalGateway({ httpServer, root }) {
         return;
       }
 
-      const data = outputBuffer;
-      outputBuffer = "";
+      const data = outputBuffer.slice(0, MAX_OUTPUT_BATCH);
+      outputBuffer = outputBuffer.slice(data.length);
       webSocket.send(JSON.stringify({ type: "output", data }));
+      if (outputBuffer) outputTimer = setTimeout(flushOutput, 16);
+    }
+
+    function drainOutput() {
+      if (outputTimer !== null) clearTimeout(outputTimer);
+      outputTimer = null;
+      while (outputBuffer && webSocket.readyState === WebSocket.OPEN) {
+        const data = outputBuffer.slice(0, MAX_OUTPUT_BATCH);
+        outputBuffer = outputBuffer.slice(data.length);
+        webSocket.send(JSON.stringify({ type: "output", data }));
+      }
+      outputBuffer = "";
     }
 
     terminal.onData((data) => {
       if (webSocket.readyState !== WebSocket.OPEN) return;
       outputBuffer += data;
+      if (outputBuffer.length > MAX_QUEUED_OUTPUT) {
+        const keep = MAX_QUEUED_OUTPUT - OUTPUT_OMITTED_NOTICE.length;
+        outputBuffer = `${OUTPUT_OMITTED_NOTICE}${outputBuffer.slice(-keep)}`;
+      }
       if (outputTimer === null) outputTimer = setTimeout(flushOutput, 16);
     });
 
     terminal.onExit(({ exitCode }) => {
       terminalExited = true;
-      if (outputTimer !== null) clearTimeout(outputTimer);
-      flushOutput();
+      drainOutput();
       terminals.delete(terminal);
       if (webSocket.readyState === WebSocket.OPEN) {
         webSocket.send(JSON.stringify({ type: "exit", exitCode }));

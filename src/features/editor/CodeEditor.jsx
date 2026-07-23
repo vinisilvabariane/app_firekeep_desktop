@@ -16,23 +16,23 @@ const MONO_STACK =
   '"JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, ui-monospace, monospace';
 
 export function CodeEditor({ file, onClose }) {
-  const [value, setValue] = useState("");
+  const [initialContent, setInitialContent] = useState("");
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState("carregando");
   const [error, setError] = useState(null);
-
   const editorRef = useRef(null);
   const observerRef = useRef(null);
-  const contentSubRef = useRef(null);
+  const layoutFrameRef = useRef(null);
+  const dirtyRef = useRef(false);
   const saveRef = useRef(() => {});
 
-  // Libera observer e listeners do Monaco ao fechar o editor.
   useEffect(() => {
     return () => {
       observerRef.current?.disconnect();
       observerRef.current = null;
-      contentSubRef.current?.dispose();
-      contentSubRef.current = null;
+      if (layoutFrameRef.current) cancelAnimationFrame(layoutFrameRef.current);
+      layoutFrameRef.current = null;
+      editorRef.current = null;
     };
   }, []);
 
@@ -48,15 +48,15 @@ export function CodeEditor({ file, onClose }) {
     fetchFileContent(file.path)
       .then((data) => {
         if (cancelled) return;
-        setValue(data.content);
+        setInitialContent(data.content);
+        dirtyRef.current = false;
         setDirty(false);
         setStatus("pronto");
       })
       .catch((readError) => {
-        if (!cancelled) {
-          setError(readError.message ?? "Nao consegui abrir o arquivo.");
-          setStatus("erro");
-        }
+        if (cancelled) return;
+        setError(readError.message ?? "Nao consegui abrir o arquivo.");
+        setStatus("erro");
       });
 
     return () => {
@@ -64,44 +64,22 @@ export function CodeEditor({ file, onClose }) {
     };
   }, [file.path]);
 
-  // O conteudo chega de forma assincrona (fetch) depois do editor montar. Em
-  // painel com backdrop-filter o Monaco as vezes nao repinta as linhas ao
-  // receber o novo valor, ficando "preso" numa unica linha vazia. Ao terminar
-  // de carregar, forcamos layout + render no proximo frame para destravar.
-  useEffect(() => {
-    if (status !== "pronto") return undefined;
-    const editor = editorRef.current;
-    if (!editor) return undefined;
-    // setTimeout (nao requestAnimationFrame): o rAF fica pausado quando a janela
-    // nao esta em foco/visivel, e o editor ficaria preso sem repintar.
-    const timer = setTimeout(() => {
-      editor.layout();
-      // Um "empurrao" no scroll forca o Monaco a recalcular a faixa visivel e
-      // repintar as linhas — render(true) sozinho nao destrava o viewport preso.
-      const top = editor.getScrollTop();
-      editor.setScrollTop(top + 1);
-      editor.setScrollTop(top);
-      editor.render(true);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [status]);
-
   const save = useCallback(async () => {
-    const current = editorRef.current ? editorRef.current.getValue() : value;
+    const current = editorRef.current?.getValue() ?? initialContent;
     setStatus("salvando");
     try {
       await saveFileContent(file.path, current);
+      dirtyRef.current = false;
       setDirty(false);
       setStatus("salvo");
     } catch (saveError) {
       setError(saveError.message ?? "Nao consegui salvar.");
       setStatus("erro");
     }
-  }, [file.path, value]);
+  }, [file.path, initialContent]);
 
-  // Mantem o Ctrl+S do Monaco sempre chamando a versao mais recente de save().
   saveRef.current = () => {
-    if (dirty) save();
+    if (dirtyRef.current) save();
   };
 
   function handleBeforeMount(monaco) {
@@ -114,51 +92,49 @@ export function CodeEditor({ file, onClose }) {
       saveRef.current();
     });
 
-    // Dentro de um painel flex com backdrop-filter, o Monaco costuma nascer com
-    // dimensoes erradas (5x5px) e/ou o viewport fica "preso" sem pintar as
-    // linhas, mesmo com o modelo carregado. Medimos o host explicitamente,
-    // forcamos o layout e um render redraw — isso destrava a pintura das linhas.
     const host = editor.getContainerDomNode();
+    let lastWidth = 0;
+    let lastHeight = 0;
     const refresh = () => {
-      if (!host) return;
-      editor.layout({ width: host.clientWidth, height: host.clientHeight });
-      editor.render(true);
+      if (!host || editorRef.current !== editor) return;
+      const width = host.clientWidth;
+      const height = host.clientHeight;
+      if (!width || !height || (width === lastWidth && height === lastHeight)) return;
+      lastWidth = width;
+      lastHeight = height;
+      editor.layout({ width, height });
     };
+
     refresh();
-    setTimeout(refresh, 0);
     if (typeof ResizeObserver !== "undefined" && host) {
-      const observer = new ResizeObserver(refresh);
+      const observer = new ResizeObserver(() => {
+        if (layoutFrameRef.current) cancelAnimationFrame(layoutFrameRef.current);
+        layoutFrameRef.current = requestAnimationFrame(() => {
+          layoutFrameRef.current = null;
+          refresh();
+        });
+      });
       observer.observe(host);
       observerRef.current = observer;
     }
 
-    // Se a fonte (JetBrains Mono via web font) ainda nao carregou quando o Monaco
-    // mede os glifos, as metricas saem zeradas e o layout quebra. Ao terminar de
-    // carregar, remedimos e repintamos — deterministico em qualquer maquina.
     if (globalThis.document?.fonts?.ready) {
       document.fonts.ready.then(() => {
+        if (editorRef.current !== editor) return;
         monaco.editor.remeasureFonts();
+        lastWidth = 0;
+        lastHeight = 0;
         refresh();
       });
     }
 
-    // O conteudo do arquivo chega via fetch DEPOIS da montagem. Quando ele e
-    // injetado no modelo, o viewport as vezes fica preso mostrando so uma linha.
-    // No primeiro conteudo, damos um empurrao no scroll para forcar a pintura da
-    // faixa visivel, e removemos o listener para nao interferir na digitacao.
-    const nudge = () => {
-      const top = editor.getScrollTop();
-      editor.setScrollTop(top + 1);
-      editor.setScrollTop(top);
-      editor.render(true);
-    };
-    contentSubRef.current = editor.onDidChangeModelContent(() => {
-      contentSubRef.current?.dispose();
-      contentSubRef.current = null;
-      setTimeout(nudge, 0);
-    });
-
     editor.focus();
+  }
+
+  function handleChange() {
+    if (dirtyRef.current) return;
+    dirtyRef.current = true;
+    setDirty(true);
   }
 
   return (
@@ -170,7 +146,7 @@ export function CodeEditor({ file, onClose }) {
         <Stack sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="body2" fontWeight={900} noWrap>
             {file.name}
-            {dirty ? " ●" : ""}
+            {dirty ? " *" : ""}
           </Typography>
           <Typography variant="caption" className="codeEditorPath" noWrap>
             {file.path}
@@ -184,7 +160,7 @@ export function CodeEditor({ file, onClose }) {
           variant="contained"
           startIcon={<Icon name="save" fontSize="small" />}
           onClick={save}
-          disabled={!dirty || status === "carregando" || status === "salvando"}
+          disabled={!dirty || loading || status === "salvando"}
         >
           Salvar
         </Button>
@@ -202,54 +178,50 @@ export function CodeEditor({ file, onClose }) {
       ) : null}
 
       <Box className="codeEditorScroll">
-        <Editor
-          className="codeEditorMonaco"
-          height="100%"
-          theme="ember-keep"
-          language={language}
-          path={file.path}
-          value={value}
-          loading={
-            <Stack sx={{ alignItems: "center", gap: 1.5, color: "var(--muted)" }}>
-              <CircularProgress size={22} sx={{ color: "var(--ember)" }} />
-              <Typography variant="caption">Carregando editor…</Typography>
-            </Stack>
-          }
-          beforeMount={handleBeforeMount}
-          onMount={handleMount}
-          onChange={(next) => {
-            setValue(next ?? "");
-            setDirty(true);
-          }}
-          options={{
-            readOnly: loading,
-            automaticLayout: false,
-            fontFamily: MONO_STACK,
-            fontSize: 13,
-            lineHeight: 20,
-            fontLigatures: true,
-            tabSize: 2,
-            insertSpaces: true,
-            minimap: { enabled: true, renderCharacters: false, maxColumn: 90 },
-            scrollBeyondLastLine: false,
-            smoothScrolling: true,
-            cursorBlinking: "smooth",
-            cursorSmoothCaretAnimation: "on",
-            renderWhitespace: "selection",
-            renderLineHighlight: "line",
-            roundedSelection: true,
-            padding: { top: 12, bottom: 12 },
-            // Evita que o autocomplete/hover seja cortado pelo overflow do painel.
-            fixedOverflowWidgets: true,
-            scrollbar: {
-              verticalScrollbarSize: 10,
-              horizontalScrollbarSize: 10,
-              useShadows: false,
-            },
-            guides: { indentation: true },
-            bracketPairColorization: { enabled: true },
-          }}
-        />
+        {loading ? (
+          <Stack className="codeEditorLoading" sx={{ alignItems: "center", gap: 1.5, color: "var(--muted)" }}>
+            <CircularProgress size={22} sx={{ color: "var(--ember)" }} />
+            <Typography variant="caption">Carregando editor...</Typography>
+          </Stack>
+        ) : (
+          <Editor
+            className="codeEditorMonaco"
+            height="100%"
+            theme="ember-keep"
+            language={language}
+            path={file.path}
+            defaultValue={initialContent}
+            beforeMount={handleBeforeMount}
+            onMount={handleMount}
+            onChange={handleChange}
+            options={{
+              automaticLayout: false,
+              fontFamily: MONO_STACK,
+              fontSize: 13,
+              lineHeight: 20,
+              fontLigatures: false,
+              tabSize: 2,
+              insertSpaces: true,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              smoothScrolling: false,
+              cursorBlinking: "blink",
+              cursorSmoothCaretAnimation: "off",
+              renderWhitespace: "selection",
+              renderLineHighlight: "line",
+              roundedSelection: true,
+              padding: { top: 12, bottom: 12 },
+              fixedOverflowWidgets: true,
+              scrollbar: {
+                verticalScrollbarSize: 10,
+                horizontalScrollbarSize: 10,
+                useShadows: false,
+              },
+              guides: { indentation: true },
+              bracketPairColorization: { enabled: true },
+            }}
+          />
+        )}
       </Box>
     </Paper>
   );

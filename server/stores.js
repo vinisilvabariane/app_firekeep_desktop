@@ -7,6 +7,7 @@ import {
   preferencesFile,
   userAudioDir,
   userBackgroundsDir,
+  videoLinksLog,
 } from "./config.js";
 import { httpError } from "./utils.js";
 
@@ -35,6 +36,13 @@ async function appendLogEntry(logPath, entry) {
   await appendFile(logPath, `${JSON.stringify(entry)}\n`, "utf8");
 }
 
+async function appendCatalogEntry(root, logFile, entry, { mirrorSeed = false } = {}) {
+  await appendLogEntry(path.join(root, logFile), entry);
+  if (mirrorSeed) {
+    await appendLogEntry(path.join(root, "seed", path.basename(logFile)), entry);
+  }
+}
+
 function replayLog(entries, mapUpsert) {
   const active = new Map();
   const removed = new Set();
@@ -60,6 +68,34 @@ function requireUrl(body, message) {
 }
 
 // --- Links de vídeo -------------------------------------------------------
+
+export async function readVideoLinks(root) {
+  const entries = await readLogEntries(path.join(root, videoLinksLog));
+  const { active } = replayLog(entries, (entry) => ({
+    url: entry.url,
+    label: entry.label ?? entry.url,
+  }));
+  return Array.from(active.values());
+}
+
+export async function appendVideoLink(root, body, options) {
+  const url = requireUrl(body, "Musica sem endereco.");
+  const entry = {
+    action: "upsert",
+    url,
+    label: typeof body?.label === "string" && body.label.trim() ? body.label.trim() : url,
+    createdAt: new Date().toISOString(),
+  };
+  await appendCatalogEntry(root, videoLinksLog, entry, options);
+  return { url: entry.url, label: entry.label };
+}
+
+export async function appendVideoLinkRemoval(root, body, options) {
+  const url = requireUrl(body, "Musica sem endereco.");
+  const entry = { action: "remove", url, createdAt: new Date().toISOString() };
+  await appendCatalogEntry(root, videoLinksLog, entry, options);
+  return { url };
+}
 
 // --- Audio local ------------------------------------------------------------
 
@@ -151,7 +187,7 @@ export async function readBackgrounds(root) {
   return Array.from(active.values());
 }
 
-export async function appendBackground(root, body) {
+export async function appendBackground(root, body, options) {
   const url = requireUrl(body, "Fundo sem endereco.");
   const entry = {
     action: "upsert",
@@ -159,14 +195,14 @@ export async function appendBackground(root, body) {
     name: typeof body?.name === "string" && body.name.trim() ? body.name.trim() : url,
     createdAt: new Date().toISOString(),
   };
-  await appendLogEntry(path.join(root, backgroundsLog), entry);
+  await appendCatalogEntry(root, backgroundsLog, entry, options);
   return { url: entry.url, name: entry.name };
 }
 
-export async function appendBackgroundRemoval(root, body) {
+export async function appendBackgroundRemoval(root, body, options) {
   const url = requireUrl(body, "Fundo sem endereco.");
   const entry = { action: "remove", url, createdAt: new Date().toISOString() };
-  await appendLogEntry(path.join(root, backgroundsLog), entry);
+  await appendCatalogEntry(root, backgroundsLog, entry, options);
 
   // Apaga o arquivo salvo quando ele vive na nossa pasta de uploads.
   if (url.startsWith("/user-backgrounds/")) {
@@ -177,7 +213,7 @@ export async function appendBackgroundRemoval(root, body) {
   return { url };
 }
 
-export async function saveBackgroundAsset(root, { name, mimeType, buffer }) {
+export async function saveBackgroundAsset(root, { name, mimeType, buffer }, options) {
   const rawName = typeof name === "string" ? name : "background";
   const type = typeof mimeType === "string" ? mimeType : "";
 
@@ -194,7 +230,7 @@ export async function saveBackgroundAsset(root, { name, mimeType, buffer }) {
 
   const url = `/user-backgrounds/${filename}`;
   const label = rawName.trim() ? rawName.trim() : filename;
-  await appendBackground(root, { url, name: label });
+  await appendBackground(root, { url, name: label }, options);
 
   return { name: label, filename, type, url };
 }
@@ -289,7 +325,7 @@ export async function savePreferences(root, body) {
   if (Object.hasOwn(body ?? {}, "visualBrightness")) {
     const brightness = Number(body.visualBrightness);
     if (Number.isFinite(brightness)) {
-      next.visualBrightness = Math.max(20, Math.min(100, Math.round(brightness)));
+      next.visualBrightness = Math.max(0, Math.min(100, Math.round(brightness)));
     }
   }
 

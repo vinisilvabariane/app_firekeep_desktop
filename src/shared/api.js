@@ -49,6 +49,18 @@ export function deleteBackground(url) {
   return requestJson("/api/backgrounds", jsonBody("DELETE", { url }));
 }
 
+export function fetchVideoLinks() {
+  return requestJson("/api/video-links", { cache: "no-store" });
+}
+
+export function saveVideoLink(videoLink) {
+  return requestJson("/api/video-links", jsonBody("POST", videoLink));
+}
+
+export function deleteVideoLink(url) {
+  return requestJson("/api/video-links", jsonBody("DELETE", { url }));
+}
+
 // Envia o arquivo como binario puro — sem base64/JSON, que congelava o app
 // (e o servidor) em GIFs grandes.
 export function uploadBackgroundAsset(file, name) {

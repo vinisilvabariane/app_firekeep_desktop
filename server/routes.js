@@ -14,9 +14,12 @@ import {
 import {
   appendBackground,
   appendBackgroundRemoval,
+  appendVideoLink,
+  appendVideoLinkRemoval,
   readBackgrounds,
   readBrowserState,
   readPreferences,
+  readVideoLinks,
   saveBackgroundAsset,
   saveBrowserState,
   savePreferences,
@@ -28,6 +31,7 @@ import { toMessage } from "./utils.js";
 const rawImageBody = express.raw({ type: "image/*", limit: "64mb" });
 
 export function registerApiRoutes(app, { root, storageRoot }) {
+  const catalogOptions = { mirrorSeed: path.resolve(root) === path.resolve(storageRoot) };
   const respond = (handler, fallbackMessage) => async (request, response) => {
     try {
       response.json(await handler(request));
@@ -58,7 +62,7 @@ export function registerApiRoutes(app, { root, storageRoot }) {
           name: decodeHeaderValue(request.get("x-firekeep-name")),
           mimeType: request.get("content-type"),
           buffer: request.body,
-        }),
+        }, catalogOptions),
       "Falha ao salvar fundo local.",
     ),
   );
@@ -70,12 +74,39 @@ export function registerApiRoutes(app, { root, storageRoot }) {
 
   app.post(
     "/api/backgrounds",
-    respond(async (request) => ({ background: await appendBackground(storageRoot, request.body) }), "Falha ao salvar fundo."),
+    respond(
+      async (request) => ({ background: await appendBackground(storageRoot, request.body, catalogOptions) }),
+      "Falha ao salvar fundo.",
+    ),
   );
 
   app.delete(
     "/api/backgrounds",
-    respond(async (request) => ({ background: await appendBackgroundRemoval(storageRoot, request.body) }), "Falha ao remover fundo."),
+    respond(
+      async (request) => ({ background: await appendBackgroundRemoval(storageRoot, request.body, catalogOptions) }),
+      "Falha ao remover fundo.",
+    ),
+  );
+
+  app.get(
+    "/api/video-links",
+    respond(async () => ({ videoLinks: await readVideoLinks(storageRoot) }), "Falha ao ler musicas."),
+  );
+
+  app.post(
+    "/api/video-links",
+    respond(
+      async (request) => ({ videoLink: await appendVideoLink(storageRoot, request.body, catalogOptions) }),
+      "Falha ao salvar musica.",
+    ),
+  );
+
+  app.delete(
+    "/api/video-links",
+    respond(
+      async (request) => ({ videoLink: await appendVideoLinkRemoval(storageRoot, request.body, catalogOptions) }),
+      "Falha ao remover musica.",
+    ),
   );
 
   app.get(

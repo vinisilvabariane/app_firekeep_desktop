@@ -29,7 +29,7 @@ export function normalizeSettings(value) {
     .map((background) => ({ url: background.url, name: background.name ?? background.url }));
   const rawBrightness = Number(settings.visualBrightness);
   const visualBrightness = Number.isFinite(rawBrightness)
-    ? Math.max(20, Math.min(100, Math.round(rawBrightness)))
+    ? Math.max(0, Math.min(100, Math.round(rawBrightness)))
     : settings.dimVisual || settings.dimVideo
       ? 70
       : 100;

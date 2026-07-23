@@ -20,6 +20,9 @@ npm run dev
 - `GET /api/backgrounds` — lista a biblioteca de fundos salvos
 - `POST /api/backgrounds` — renomeia/registra `{ url, name }`
 - `DELETE /api/backgrounds` — remove `{ url }` (apaga o arquivo do disco)
+- `GET /api/video-links` — lista musicas do YouTube com nome e link
+- `POST /api/video-links` — adiciona ou renomeia `{ url, label }`
+- `DELETE /api/video-links` — remove `{ url }`
 - `GET /api/fs/list?path=` — lista uma pasta (usado pelo explorador)
 - `GET /api/fs/read?path=` — le um arquivo de texto para o editor (limite 2MB)
 - `POST /api/fs/write` — salva `{ path, content }`
@@ -88,14 +91,18 @@ $env:FIREKEEP_SHELL="pwsh.exe"
 npm run electron:dev
 ```
 
-A aceleracao de GPU fica desativada por padrao no Electron para evitar tela
-preta/crash ao usar o navegador interno em maquinas onde o Chromium derruba o
-processo GPU. Para reativar GPU manualmente:
+A aceleracao de GPU fica habilitada por padrao porque Monaco, xterm, GIFs e a
+composicao da interface dependem dela para responder sem atraso. Em maquinas
+com driver grafico problematico, use o fallback por software:
 
 ```bash
-$env:FIREKEEP_USE_GPU="1"
+$env:FIREKEEP_DISABLE_GPU="1"
 Firekeep.exe
 ```
+
+No Electron, o navegador interno usa `webview`. Ao abrir a interface pelo
+servidor web de `npm run dev`, ele usa um `iframe`; paginas que proibem
+incorporacao por CSP ou `X-Frame-Options` so funcionam no aplicativo desktop.
 
 O servidor local do app roda em um Worker separado do processo principal do
 Electron. Rotas, arquivos locais, logs e terminais ficam fora do processo que
@@ -123,13 +130,15 @@ O Firekeep nao precisa de banco de dados para o uso desktop atual:
 
 - fundos enviados ficam em `public/user-backgrounds/`
 - a biblioteca de fundos (nome + endereco) fica em `logs/firekeep-backgrounds.jsonl`
+- os links do YouTube e seus nomes ficam em `logs/firekeep-video-links.jsonl`
 - abas e favoritos do navegador ficam em `logs/firekeep-browser-state.json`
 
 No app instalado esses arquivos vivem na pasta de dados do usuario
 (`%APPDATA%/Firekeep`). Na primeira execucao, os catalogos de fabrica da
 pasta `seed/` (musicas, fundos e preferencias que vao no instalador) sao
-copiados para la — arquivos ja existentes nunca sao sobrescritos. Para
-atualizar os dados de fabrica de uma release, regenere os seeds a partir do
-estado atual do dev antes de rodar `npm run desktop:dist`.
+copiados para la — arquivos ja existentes nunca sao sobrescritos. No
+desenvolvimento, adicionar, renomear ou remover um fundo ou link do YouTube
+tambem registra a mesma operacao em `seed/`. Assim, os nomes e links versionados
+seguem juntos no proximo clone e nas builds seguintes sem regeneracao manual.
 
 Os logs sao append-only: cada item novo, renomeacao ou remocao vira uma linha JSON com `action` (`upsert`/`remove`), `url`, `name`/`label` e `createdAt`. Renomear = novo `upsert` com o mesmo `url`.

@@ -11,14 +11,15 @@ import Typography from "@mui/material/Typography";
 import { Icon } from "../../shared/Icon";
 import { completeFileSystemPath } from "../../shared/api";
 
-let terminalCounter = 1;
 const DEFAULT_TERMINAL_CWD = "C:\\";
+const MAX_PENDING_OUTPUT = 256 * 1024;
 
 export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggleOpen }) {
   const [projectPath] = useState(DEFAULT_TERMINAL_CWD);
+  const terminalSequenceRef = useRef(1);
   const [hasOpened, setHasOpened] = useState(open);
   const [terminalState, setTerminalState] = useState(() => {
-    const initialTerminal = createTerminalDescriptor({ cwd: DEFAULT_TERMINAL_CWD });
+    const initialTerminal = createTerminalDescriptor({ title: "Terminal 1", cwd: DEFAULT_TERMINAL_CWD });
     return {
       activeId: initialTerminal.id,
       items: [initialTerminal],
@@ -29,12 +30,12 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggl
   const activeTerminalId = terminalState.activeId;
 
   function addTerminal() {
+    terminalSequenceRef.current += 1;
+    const terminal = createTerminalDescriptor({
+      title: `Terminal ${terminalSequenceRef.current}`,
+      cwd: projectPath,
+    });
     setTerminalState((current) => {
-      const terminal = createTerminalDescriptor({
-        title: `Terminal ${current.items.length + 1}`,
-        cwd: projectPath,
-      });
-
       return {
         activeId: terminal.id,
         items: [...current.items, terminal],
@@ -44,6 +45,9 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggl
 
   function closeTerminal(id) {
     if (terminals.length === 1) {
+      terminalSequenceRef.current = 0;
+      setTerminalState({ activeId: null, items: [] });
+      setStatuses({});
       onToggleOpen();
       return;
     }
@@ -82,8 +86,17 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggl
   }, []);
 
   useEffect(() => {
-    if (open) setHasOpened(true);
-  }, [open]);
+    if (!open) return;
+    setHasOpened(true);
+    if (terminals.length) return;
+
+    terminalSequenceRef.current += 1;
+    const terminal = createTerminalDescriptor({
+      title: `Terminal ${terminalSequenceRef.current}`,
+      cwd: projectPath,
+    });
+    setTerminalState({ activeId: terminal.id, items: [terminal] });
+  }, [open, projectPath, terminals.length]);
 
   if (!open && !hasOpened) return null;
 
@@ -136,9 +149,9 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggl
 
       <Box className="terminalStage">
         {terminals.map((terminal) => (
-            <TerminalPane
+          <TerminalPane
             key={terminal.id}
-            active={terminal.id === activeTerminalId}
+            active={open && terminal.id === activeTerminalId}
             cwd={terminal.cwd || projectPath}
             terminalId={terminal.id}
             onStatus={reportStatus}
@@ -157,6 +170,8 @@ function TerminalPane({ active, cwd, terminalId, onStatus }) {
   const socketRef = useRef(null);
   const inputLineRef = useRef("");
   const currentCwdRef = useRef(cwd);
+  const visibleRef = useRef(active);
+  const pendingOutputRef = useRef("");
   const [status, setStatus] = useState("conectando");
 
   useEffect(() => {
@@ -168,7 +183,7 @@ function TerminalPane({ active, cwd, terminalId, onStatus }) {
 
     const terminal = new Terminal({
       allowProposedApi: false,
-      allowTransparency: true,
+      allowTransparency: false,
       convertEol: true,
       cursorBlink: true,
       cursorStyle: "bar",
@@ -176,7 +191,7 @@ function TerminalPane({ active, cwd, terminalId, onStatus }) {
       fontSize: 13,
       lineHeight: 1.18,
       theme: {
-        background: "rgba(7, 9, 13, 0.42)",
+        background: "#07090d",
         foreground: "#f2ecdd",
         cursor: "#ff8c42",
         selectionBackground: "#40312a",
@@ -225,9 +240,18 @@ function TerminalPane({ active, cwd, terminalId, onStatus }) {
     });
 
     socket.addEventListener("message", (event) => {
-      const message = JSON.parse(event.data);
+      let message;
+      try {
+        message = JSON.parse(event.data);
+      } catch {
+        return;
+      }
       if (message.type === "output") {
-        terminal.write(message.data);
+        if (visibleRef.current) {
+          terminal.write(message.data);
+        } else {
+          pendingOutputRef.current = appendPendingOutput(pendingOutputRef.current, message.data);
+        }
         updateCwdFromOutput(message.data);
       }
       if (message.type === "error") {
@@ -279,14 +303,19 @@ function TerminalPane({ active, cwd, terminalId, onStatus }) {
       inputDisposable.dispose();
       socket.close();
       terminal.dispose();
+      pendingOutputRef.current = "";
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cwd]);
 
   useEffect(() => {
+    visibleRef.current = active;
     if (!active) return;
 
     window.requestAnimationFrame(() => {
+      const pending = pendingOutputRef.current;
+      pendingOutputRef.current = "";
+      if (pending) terminalRef.current?.write(pending);
       fitAddonRef.current?.fit();
       terminalRef.current?.focus();
     });
@@ -364,13 +393,17 @@ function TerminalPane({ active, cwd, terminalId, onStatus }) {
   }
 }
 
-function createTerminalDescriptor({ title, cwd } = {}) {
-  const number = terminalCounter;
-  terminalCounter += 1;
+function appendPendingOutput(current, incoming) {
+  const next = `${current}${incoming}`;
+  if (next.length <= MAX_PENDING_OUTPUT) return next;
+  const notice = "\r\n[saida anterior omitida]\r\n";
+  return `${notice}${next.slice(-(MAX_PENDING_OUTPUT - notice.length))}`;
+}
 
+function createTerminalDescriptor({ title, cwd } = {}) {
   return {
-    id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${number}`,
-    title: title || `Terminal ${number}`,
+    id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title: title || "Terminal",
     cwd: cwd || "",
   };
 }

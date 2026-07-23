@@ -114,7 +114,8 @@ export const VisualDock = memo(function VisualDock({
   }
 
   function changeBrightness(value) {
-    const brightness = Math.max(20, Math.min(100, Math.round(Number(value) || 100)));
+    const numericValue = Number(value);
+    const brightness = Number.isFinite(numericValue) ? Math.max(0, Math.min(100, Math.round(numericValue))) : 100;
     onUpdateSettings({ visualBrightness: brightness, dimVisual: brightness < 100 });
     savePreferences({ visualBrightness: brightness, dimVisual: brightness < 100 }).catch(() => {});
   }

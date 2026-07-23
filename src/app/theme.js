@@ -41,7 +41,6 @@ export const theme = createTheme({
         root: {
           backgroundImage: "none",
           border: "1px solid rgba(242, 236, 221, 0.12)",
-          backdropFilter: "blur(12px)",
           boxShadow: "0 18px 52px rgba(0, 0, 0, 0.3)",
         },
       },

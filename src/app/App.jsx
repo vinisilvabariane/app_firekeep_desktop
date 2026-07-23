@@ -105,6 +105,7 @@ function Firekeep() {
   }, [activeVisual.url]);
 
   const shadeStrength = Math.max(0, Math.min(1, (100 - settings.visualBrightness) / 80));
+  const deepShadeStrength = Math.max(0, Math.min(1, (20 - settings.visualBrightness) / 20));
   const appClassName = [
     "app",
     explorerOpen ? "" : "explorerClosed",
@@ -136,6 +137,7 @@ function Firekeep() {
           "--shade-side-alpha": 0.08 + shadeStrength * 0.32,
           "--shade-bottom-alpha": 0.18 + shadeStrength * 0.38,
           "--shade-radial-alpha": 0.12 + shadeStrength * 0.28,
+          "--shade-uniform-alpha": deepShadeStrength * 0.48,
         }}
       />
       <Box className={videoCurtainVisible ? "videoCurtain isVisible" : "videoCurtain"} />

@@ -5,6 +5,30 @@ Use este arquivo como base para atualizar a pagina de lancamentos do site.
 
 Nota de versionamento: o Firekeep ainda nao chegou na `1.0.0` estavel. As entradas que antes apareciam como `1.0.0`, `1.0.1`, `1.1.0`, `1.2.0`, `1.3.0` e `1.4.0` foram reclassificadas como betas da futura `1.0.0`.
 
+## beta.1.8 2026-07-23
+
+- Navegador aguarda `dom-ready` antes de chamar a API do `webview`, evitando
+  que uma excecao desmonte a interface e deixe a janela preta.
+- Modo web usa `iframe` como fallback; o desktop preserva navegacao completa.
+- GPU voltou a ser habilitada por padrao. `FIREKEEP_DISABLE_GPU=1` mantem um
+  fallback para drivers problematicos.
+- Monaco deixou de sincronizar todo o texto com React a cada tecla; layouts sao
+  agrupados por frame e efeitos de cursor/minimap foram reduzidos.
+- Terminais ocultos deixam de pintar saida continuamente, e lotes muito grandes
+  sao limitados no gateway.
+- Superficies de trabalho deixaram de aplicar blur continuo sobre fundos GIF.
+- Cards e superficies de trabalho ficaram mais transparentes sem reativar
+  blur; o controle de fundo agora chega a
+  0% e aplica uma camada extra de escurecimento abaixo de 20%.
+- Pesquisas comuns usam o Google em portugues e a sessao isolada preserva a
+  preferencia de tema escuro.
+- Sessoes do terminal usam numeracao sequencial estavel mesmo no React
+  `StrictMode` de desenvolvimento.
+- Fechar a ultima aba desmonta o xterm e encerra o PTY; minimizar o painel
+  continua preservando as sessoes abertas.
+- Nomes dos fundos e pares nome/link do YouTube agora sao persistidos nos seeds
+  versionados e restaurados no primeiro start de um clone ou instalacao.
+
 ## beta.1.7 - 2026-07-22
 
 Fonte: consolidacao do workspace atual desde a `beta.1.6`.

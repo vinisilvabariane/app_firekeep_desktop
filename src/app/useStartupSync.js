@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { normalizeSettings } from "../features/video/defaultVideos";
-import { fetchBackgrounds, fetchPreferences } from "../shared/api";
+import { fetchBackgrounds, fetchPreferences, fetchVideoLinks } from "../shared/api";
 
 // Sincroniza o estado guardado no navegador com o que o servidor tem em disco
 // (preferencias e fundos), uma vez, na inicializacao.
@@ -30,7 +30,7 @@ export function useStartupSync(setStoredSettings) {
       if (Object.hasOwn(preferences, "visualBrightness")) {
         const brightness = Number(preferences.visualBrightness);
         if (Number.isFinite(brightness)) {
-          nextPatch.visualBrightness = Math.max(20, Math.min(100, Math.round(brightness)));
+          nextPatch.visualBrightness = Math.max(0, Math.min(100, Math.round(brightness)));
         }
       }
 
@@ -66,12 +66,39 @@ export function useStartupSync(setStoredSettings) {
 
     loadSavedBackgrounds().catch(() => {});
   }, [preferencesLoaded, setStoredSettings]);
+
+  useEffect(() => {
+    async function loadSavedVideoLinks() {
+      const result = await fetchVideoLinks();
+      if (!Array.isArray(result.videoLinks)) return;
+
+      setStoredSettings((current) => {
+        const normalized = normalizeSettings(current);
+        const youtubeLinks = mergeVideoLinks(normalized.youtubeLinks, result.videoLinks);
+        return normalizeSettings({
+          ...normalized,
+          youtubeLinks,
+          activeYoutubeUrl: normalized.activeYoutubeUrl || youtubeLinks[0]?.url || "",
+        });
+      });
+    }
+
+    loadSavedVideoLinks().catch(() => {});
+  }, [setStoredSettings]);
 }
 
 function mergeBackgrounds(currentBackgrounds, incoming) {
   const byUrl = new Map();
   for (const background of [...currentBackgrounds, ...incoming]) {
     if (background?.url) byUrl.set(background.url, { url: background.url, name: background.name ?? background.url });
+  }
+  return Array.from(byUrl.values());
+}
+
+function mergeVideoLinks(currentLinks, incoming) {
+  const byUrl = new Map();
+  for (const link of [...currentLinks, ...incoming]) {
+    if (link?.url) byUrl.set(link.url, { url: link.url, label: link.label ?? link.url });
   }
   return Array.from(byUrl.values());
 }

@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { deleteVideoLink, saveVideoLink } from "../../shared/api";
 import { useStoredState } from "../../shared/storage";
 import { parseYouTube, parseYouTubeId } from "../../shared/youtube";
 import { MusicPanel } from "./MusicPanel";
@@ -153,6 +154,7 @@ export const MusicDock = memo(function MusicDock({
       : [...youtubeLinks, nextLink];
 
     onUpdateSettings({ youtubeLinks: nextLinks, activeYoutubeUrl: url, musicMode: "youtube" });
+    saveVideoLink(nextLink).catch(() => {});
     setDraftUrl("");
     setDraftLabel("");
     setError("");
@@ -162,7 +164,9 @@ export const MusicDock = memo(function MusicDock({
   function renameYoutubeLink(url, rawLabel) {
     const label = (rawLabel ?? "").trim();
     if (!label) return;
-    onUpdateSettings({ youtubeLinks: youtubeLinks.map((link) => (link.url === url ? { ...link, label } : link)) });
+    const nextLink = { url, label };
+    onUpdateSettings({ youtubeLinks: youtubeLinks.map((link) => (link.url === url ? nextLink : link)) });
+    saveVideoLink(nextLink).catch(() => {});
   }
 
   function removeYoutubeLink(url) {
@@ -172,6 +176,7 @@ export const MusicDock = memo(function MusicDock({
       activeYoutubeUrl: activeYoutubeUrl === url ? nextLinks[0]?.url || "" : activeYoutubeUrl,
     });
     if (!nextLinks.length) setPlaying(false);
+    deleteVideoLink(url).catch(() => {});
   }
 
   function saveSpotifyConfig() {
