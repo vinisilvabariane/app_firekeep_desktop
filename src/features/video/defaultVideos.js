@@ -10,10 +10,15 @@ export const DEFAULT_SETTINGS = {
   visualBrightness: 100,
   visualUrl: "",
   visualName: "",
+  dominantColor: "#ff8c42",
   musicMenuOpen: false,
   visualMenuOpen: false,
   terminalOpen: false,
   explorerOpen: false,
+  pomodoroOpen: true,
+  clockOpen: true,
+  musicOpen: true,
+  visualOpen: true,
 };
 
 export function normalizeSettings(value) {
@@ -50,12 +55,21 @@ export function normalizeSettings(value) {
     visualBrightness,
     visualUrl: typeof settings.visualUrl === "string" ? settings.visualUrl : "",
     visualName: typeof settings.visualName === "string" ? settings.visualName : "",
+    dominantColor: normalizeDominantColor(settings.dominantColor),
     musicMenuOpen: Boolean(settings.musicMenuOpen ?? false),
     visualMenuOpen: Boolean(settings.visualMenuOpen),
     terminalOpen: Boolean(settings.terminalOpen ?? settings.chatOpen ?? false),
     explorerOpen: Boolean(settings.explorerOpen ?? false),
+    pomodoroOpen: Boolean(settings.pomodoroOpen ?? true),
+    clockOpen: Boolean(settings.clockOpen ?? true),
+    musicOpen: Boolean(settings.musicOpen ?? true),
+    visualOpen: Boolean(settings.visualOpen ?? true),
     backgrounds,
   };
+}
+
+function normalizeDominantColor(value) {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : "#ff8c42";
 }
 
 function normalizeYoutubeLinks(value) {
@@ -73,11 +87,11 @@ function normalizeYoutubeLinks(value) {
 function normalizeSpotifyUri(value) {
   if (typeof value !== "string") return "";
   const text = value.trim();
-  if (/^spotify:track:[A-Za-z0-9]+$/.test(text)) return text;
+  if (/^spotify:(track|playlist|album):[A-Za-z0-9]+$/.test(text)) return text;
   try {
     const url = new URL(text);
-    const match = url.pathname.match(/\/track\/([A-Za-z0-9]+)/);
-    return match ? `spotify:track:${match[1]}` : "";
+    const match = url.pathname.match(/\/(track|playlist|album)\/([A-Za-z0-9]+)/);
+    return match ? `spotify:${match[1]}:${match[2]}` : "";
   } catch {
     return "";
   }

@@ -1,23 +1,27 @@
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 let sdkPromise;
 
-export function SpotifyPlayer({
+export const SpotifyPlayer = forwardRef(function SpotifyPlayer({
   accessToken,
-  trackUri,
+  playbackUri,
   playing,
   volume,
   onReady,
   onProgress,
   onPlayingChange,
   onError,
-}) {
+}, ref) {
   const playerRef = useRef(null);
-  const deviceIdRef = useRef("");
+  const [deviceId, setDeviceId] = useState("");
   const callbacksRef = useRef({});
   const volumeRef = useRef(volume);
   callbacksRef.current = { onReady, onProgress, onPlayingChange, onError };
   volumeRef.current = volume;
+
+  useImperativeHandle(ref, () => ({
+    activate: () => playerRef.current?.activateElement?.().catch(() => {}),
+  }), []);
 
   useEffect(() => {
     if (!accessToken) return undefined;
@@ -34,7 +38,7 @@ export function SpotifyPlayer({
         playerRef.current = player;
 
         player.addListener("ready", ({ device_id }) => {
-          deviceIdRef.current = device_id;
+          setDeviceId(device_id);
           callbacksRef.current.onReady?.(device_id);
         });
         player.addListener("player_state_changed", (state) => {
@@ -46,6 +50,7 @@ export function SpotifyPlayer({
         player.addListener("authentication_error", ({ message }) => callbacksRef.current.onError?.(message));
         player.addListener("account_error", () => callbacksRef.current.onError?.("Spotify Premium e necessario para tocar no Firekeep."));
         player.addListener("playback_error", ({ message }) => callbacksRef.current.onError?.(message));
+        player.addListener("autoplay_failed", () => callbacksRef.current.onError?.("O Spotify bloqueou a reproducao automatica. Clique em Tocar novamente."));
         player.connect();
       })
       .catch((error) => callbacksRef.current.onError?.(error.message));
@@ -54,7 +59,7 @@ export function SpotifyPlayer({
       cancelled = true;
       playerRef.current?.disconnect();
       playerRef.current = null;
-      deviceIdRef.current = "";
+      setDeviceId("");
     };
   }, [accessToken]);
 
@@ -63,26 +68,28 @@ export function SpotifyPlayer({
   }, [volume]);
 
   useEffect(() => {
-    if (!accessToken || !deviceIdRef.current || !trackUri) return;
+    if (!accessToken || !deviceId || !playbackUri) return;
     if (playing) {
-      playSpotifyTrack(accessToken, deviceIdRef.current, trackUri).catch((error) => {
+      playSpotifyUri(accessToken, deviceId, playbackUri, playerRef.current).catch((error) => {
         callbacksRef.current.onError?.(error.message);
       });
     }
     else playerRef.current?.pause();
-  }, [accessToken, playing, trackUri]);
+  }, [accessToken, deviceId, playing, playbackUri]);
 
   return null;
-}
+});
 
-async function playSpotifyTrack(accessToken, deviceId, trackUri) {
+async function playSpotifyUri(accessToken, deviceId, playbackUri, player) {
+  const isTrack = playbackUri.startsWith("spotify:track:");
+  await player?.activateElement?.().catch(() => {});
   const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(deviceId)}`, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ uris: [trackUri] }),
+    body: JSON.stringify(isTrack ? { uris: [playbackUri] } : { context_uri: playbackUri }),
   });
   if (!response.ok && response.status !== 204) {
     const data = await response.json().catch(() => ({}));

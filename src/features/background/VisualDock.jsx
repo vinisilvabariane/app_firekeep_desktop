@@ -18,6 +18,7 @@ export const VisualDock = memo(function VisualDock({
   visualUrl,
   visualName,
   visualBrightness,
+  dominantColor,
   sessionVisual,
   onSessionVisualChange,
   onUpdateSettings,
@@ -120,6 +121,11 @@ export const VisualDock = memo(function VisualDock({
     savePreferences({ visualBrightness: brightness, dimVisual: brightness < 100 }).catch(() => {});
   }
 
+  function changeDominantColor(color) {
+    onUpdateSettings({ dominantColor: color });
+    savePreferences({ dominantColor: color }).catch(() => {});
+  }
+
   return (
     <VisualPanel
       visualName={sessionVisual?.name ?? visualName}
@@ -127,6 +133,7 @@ export const VisualDock = memo(function VisualDock({
       backgrounds={backgrounds}
       draftName={draftName}
       visualBrightness={visualBrightness}
+      dominantColor={dominantColor}
       onDraftNameChange={setDraftName}
       onUploadVisual={uploadVisual}
       onSelectBackground={selectBackground}
@@ -134,6 +141,7 @@ export const VisualDock = memo(function VisualDock({
       onRemoveBackground={removeBackground}
       onClearVisual={clearVisual}
       onBrightnessChange={changeBrightness}
+      onDominantColorChange={changeDominantColor}
     />
   );
 });

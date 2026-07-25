@@ -17,6 +17,7 @@ export function VisualPanel({
   backgrounds,
   draftName,
   visualBrightness,
+  dominantColor,
   onDraftNameChange,
   onUploadVisual,
   onSelectBackground,
@@ -24,6 +25,7 @@ export function VisualPanel({
   onRemoveBackground,
   onClearVisual,
   onBrightnessChange,
+  onDominantColorChange,
 }) {
   const [listOpen, setListOpen] = useState(false);
 
@@ -80,6 +82,39 @@ export function VisualPanel({
             {visualBrightness}%
           </Typography>
         </Box>
+      </Box>
+
+      <Box className="colorSetting">
+        <Box>
+          <Typography variant="body2" color="text.secondary">
+            Cor dominante
+          </Typography>
+        </Box>
+        <Box className="colorControl">
+          <input
+            className="colorPicker"
+            type="color"
+            value={dominantColor}
+            onChange={(event) => onDominantColorChange(event.target.value)}
+            aria-label="Cor dominante do software"
+          />
+        </Box>
+      </Box>
+
+      <Box className="colorSwatches" aria-label="Cores sugeridas">
+        {["#ff8c42", "#d95d39", "#9b6cff", "#3e9bff", "#29b987", "#e0b84d"].map((color) => (
+          <Tooltip title={color.toUpperCase()} key={color}>
+            <Box
+              component="button"
+              type="button"
+              className={dominantColor === color ? "colorSwatch isSelected" : "colorSwatch"}
+              style={{ "--swatch-color": color }}
+              onClick={() => onDominantColorChange(color)}
+              aria-label={`Usar cor ${color}`}
+              aria-pressed={dominantColor === color}
+            />
+          </Tooltip>
+        ))}
       </Box>
 
       <Collapse in={listOpen} unmountOnExit>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
@@ -19,10 +19,14 @@ export function MusicPanel({
   activeYoutubeUrl,
   draftLabel,
   draftUrl,
-  spotifyTrack,
   spotifyConfigured,
   spotifyConnected,
   spotifyReady,
+  spotifyProfile,
+  spotifyPlaylists,
+  spotifyLoading,
+  spotifyPlaybackUri,
+  expanded,
   error,
   playing,
   progress,
@@ -37,10 +41,10 @@ export function MusicPanel({
   onSelectYoutubeLink,
   onRenameYoutubeLink,
   onRemoveYoutubeLink,
-  onSpotifyTrackChange,
-  onSaveSpotifyConfig,
   onConnectSpotify,
   onDisconnectSpotify,
+  onSelectSpotifyPlaylist,
+  onToggleExpanded,
   onTogglePlay,
   onSkip,
   onPrevious,
@@ -52,6 +56,11 @@ export function MusicPanel({
   const current = progress?.current ?? 0;
   const fraction = duration > 0 ? Math.min(1, current / duration) : 0;
   const isSpotify = mode === "spotify";
+  const activePlaylist = spotifyPlaylists.find((playlist) => playlist.uri === spotifyPlaybackUri);
+
+  useEffect(() => {
+    if (isSpotify) setListOpen(true);
+  }, [isSpotify]);
 
   function handleSeek(event) {
     if (!onSeek || duration <= 0) return;
@@ -61,7 +70,7 @@ export function MusicPanel({
   }
 
   return (
-    <Paper elevation={10} className="sidePanel musicPanel">
+    <Paper elevation={10} className={expanded ? "sidePanel musicPanel isExpanded" : "sidePanel musicPanel"}>
       <Box className="rowBetween">
         <Box className="rowCenter">
           <Box className="tinyIcon">
@@ -71,14 +80,23 @@ export function MusicPanel({
             Musicas
           </Typography>
         </Box>
-        <Box
-          component="button"
-          type="button"
-          className={listOpen ? "musicListToggle isOpen" : "musicListToggle"}
-          onClick={() => setListOpen((currentValue) => !currentValue)}
-        >
-          {isSpotify ? "Spotify" : `${youtubeLinks.length} YouTube`}
-          <Icon name={listOpen ? "chevronDown" : "chevronRight"} fontSize="small" />
+        <Box className="musicHeaderActions">
+          <Tooltip title={expanded ? "Voltar ao painel compacto" : "Abrir musica em tela grande"}>
+            <IconButton className="musicExpandButton" size="small" onClick={onToggleExpanded} aria-label={expanded ? "Voltar ao painel compacto" : "Abrir musica em tela grande"}>
+              <Icon name={expanded ? "minimize" : "maximize"} fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Box
+            component="button"
+            type="button"
+            className={listOpen ? "musicListToggle isOpen" : "musicListToggle"}
+            onClick={() => setListOpen((currentValue) => !currentValue)}
+            aria-expanded={listOpen}
+            aria-label={listOpen ? "Minimizar biblioteca de musica" : "Expandir biblioteca de musica"}
+          >
+            {listOpen ? "Minimizar" : (isSpotify ? "Biblioteca" : `${youtubeLinks.length} YouTube`)}
+            <Icon name={listOpen ? "chevronDown" : "chevronRight"} fontSize="small" />
+          </Box>
         </Box>
       </Box>
 
@@ -92,6 +110,11 @@ export function MusicPanel({
       </Box>
 
       <Box className="musicPlayer">
+        {isSpotify ? (
+          <Box className="spotifyNowArt" aria-hidden="true">
+            {activePlaylist?.image ? <img src={activePlaylist.image} alt="" /> : <Icon name="music" fontSize="small" />}
+          </Box>
+        ) : null}
         <Stack className="musicNowPlaying" direction="row" sx={{ alignItems: "center", gap: 1 }}>
           <span className={playing ? "musicPulse isOn" : "musicPulse"} />
           <Typography variant="body2" fontWeight={800} noWrap sx={{ flex: 1 }}>
@@ -171,36 +194,48 @@ export function MusicPanel({
         <Box className="stackCol">
           {isSpotify ? (
             <>
-              <TextField
-                fullWidth
-                size="small"
-                label="Link ou URI da faixa"
-                value={spotifyTrack}
-                onChange={(event) => onSpotifyTrackChange(event.target.value)}
-              />
-              <Stack direction="row" sx={{ gap: 1 }}>
-                <Button variant="outlined" size="small" onClick={onSaveSpotifyConfig}>
-                  Salvar
-                </Button>
-                {spotifyConnected ? (
-                  <Button variant="outlined" size="small" color="error" onClick={onDisconnectSpotify}>
-                    Desconectar
-                  </Button>
-                ) : (
-                  <Button variant="contained" size="small" onClick={onConnectSpotify} disabled={!spotifyConfigured}>
-                    Entrar com Spotify
-                  </Button>
-                )}
-              </Stack>
-              <Typography variant="caption" color="text.secondary">
-                {spotifyConnected
-                  ? spotifyReady
-                    ? "Spotify conectado."
-                    : "Conectado; aguardando player."
-                  : spotifyConfigured
-                    ? "Entre pela janela oficial do Spotify. Playback exige Spotify Premium."
-                    : "Spotify ainda nao foi configurado nesta build."}
-              </Typography>
+              {spotifyConnected ? (
+                <>
+                  <Box className="spotifyAccountRow">
+                    <Box className="spotifyMark">S</Box>
+                    <Box>
+                      <Typography variant="caption" fontWeight={800}>{spotifyProfile?.name || "Spotify conectado"}</Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {spotifyReady ? "Escolha uma playlist para tocar" : "Preparando player..."}
+                      </Typography>
+                    </Box>
+                    <Button variant="text" size="small" color="error" onClick={onDisconnectSpotify}>Sair</Button>
+                  </Box>
+                  <Box className="spotifyLibraryHeading">
+                    <Box>
+                      <Typography variant="caption" className="spotifyEyebrow">Sua biblioteca</Typography>
+                      <Typography variant="body2" fontWeight={900}>Playlists para este foco</Typography>
+                    </Box>
+                    {spotifyPlaylists.length ? <Typography variant="caption">{spotifyPlaylists.length}</Typography> : null}
+                  </Box>
+                  <Box className="spotifyPlaylistList" aria-label="Suas playlists do Spotify">
+                    {spotifyLoading ? <Typography variant="caption" color="text.secondary">Carregando playlists...</Typography> : null}
+                    {!spotifyLoading && !spotifyPlaylists.length ? <Typography variant="caption" color="text.secondary">Nenhuma playlist disponível nesta conta.</Typography> : null}
+                    {spotifyPlaylists.map((playlist) => (
+                      <Box component="button" type="button" className={playlist.uri === spotifyPlaybackUri ? "spotifyPlaylistRow isActive" : "spotifyPlaylistRow"} key={playlist.uri} onClick={() => onSelectSpotifyPlaylist(playlist)}>
+                        {playlist.image ? <img src={playlist.image} alt="" /> : <Box className="spotifyPlaylistCover"><Icon name="music" fontSize="small" /></Box>}
+                        <Box sx={{ minWidth: 0, textAlign: "left" }}>
+                          <Typography variant="caption" fontWeight={800} noWrap display="block">{playlist.name}</Typography>
+                          <Typography variant="caption" color="text.secondary">{playlist.total} faixas</Typography>
+                        </Box>
+                        <Icon name="play" fontSize="small" />
+                      </Box>
+                    ))}
+                  </Box>
+                </>
+              ) : (
+                <>
+                  <Typography variant="body2" fontWeight={800}>Sua biblioteca, aqui dentro.</Typography>
+                  <Typography variant="caption" color="text.secondary">Entre para ver e tocar suas playlists sem copiar links.</Typography>
+                  <Button variant="contained" size="small" onClick={onConnectSpotify} disabled={!spotifyConfigured}>Entrar com Spotify</Button>
+                  {!spotifyConfigured ? <Typography variant="caption" color="text.secondary">Spotify não foi configurado nesta build.</Typography> : null}
+                </>
+              )}
             </>
           ) : (
             <>

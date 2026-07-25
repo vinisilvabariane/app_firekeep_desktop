@@ -14,12 +14,22 @@ import { completeFileSystemPath } from "../../shared/api";
 const DEFAULT_TERMINAL_CWD = "C:\\";
 const MAX_PENDING_OUTPUT = 256 * 1024;
 
-export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggleOpen }) {
+export const TerminalWorkspace = memo(function TerminalWorkspace({
+  open,
+  onToggleOpen,
+  gridClassName = "",
+  gridDraggable = false,
+  onGridDragStart,
+  onGridDragOver,
+  onGridDrop,
+  resizable = false,
+  onResizeStart,
+}) {
   const [projectPath] = useState(DEFAULT_TERMINAL_CWD);
-  const terminalSequenceRef = useRef(1);
+  const [fontSize, setFontSize] = useState(13);
   const [hasOpened, setHasOpened] = useState(open);
   const [terminalState, setTerminalState] = useState(() => {
-    const initialTerminal = createTerminalDescriptor({ title: "Terminal 1", cwd: DEFAULT_TERMINAL_CWD });
+    const initialTerminal = createTerminalDescriptor({ number: 1, cwd: DEFAULT_TERMINAL_CWD });
     return {
       activeId: initialTerminal.id,
       items: [initialTerminal],
@@ -30,12 +40,11 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggl
   const activeTerminalId = terminalState.activeId;
 
   function addTerminal() {
-    terminalSequenceRef.current += 1;
-    const terminal = createTerminalDescriptor({
-      title: `Terminal ${terminalSequenceRef.current}`,
-      cwd: projectPath,
-    });
     setTerminalState((current) => {
+      const terminal = createTerminalDescriptor({
+        number: firstAvailableTerminalNumber(current.items),
+        cwd: projectPath,
+      });
       return {
         activeId: terminal.id,
         items: [...current.items, terminal],
@@ -45,7 +54,6 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggl
 
   function closeTerminal(id) {
     if (terminals.length === 1) {
-      terminalSequenceRef.current = 0;
       setTerminalState({ activeId: null, items: [] });
       setStatuses({});
       onToggleOpen();
@@ -68,6 +76,10 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggl
     setTerminalState((current) => ({ ...current, activeId: id }));
   }
 
+  function changeZoom(delta) {
+    setFontSize((current) => Math.max(10, Math.min(22, current + delta)));
+  }
+
   function renameTerminal(id) {
     const terminal = terminals.find((item) => item.id === id);
     const next = window.prompt("Nome da sessao", terminal?.title ?? "");
@@ -88,15 +100,15 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggl
   useEffect(() => {
     if (!open) return;
     setHasOpened(true);
-    if (terminals.length) return;
-
-    terminalSequenceRef.current += 1;
-    const terminal = createTerminalDescriptor({
-      title: `Terminal ${terminalSequenceRef.current}`,
-      cwd: projectPath,
+    setTerminalState((current) => {
+      if (current.items.length) return current;
+      const terminal = createTerminalDescriptor({
+        number: firstAvailableTerminalNumber(current.items),
+        cwd: projectPath,
+      });
+      return { activeId: terminal.id, items: [terminal] };
     });
-    setTerminalState({ activeId: terminal.id, items: [terminal] });
-  }, [open, projectPath, terminals.length]);
+  }, [open, projectPath]);
 
   if (!open && !hasOpened) return null;
 
@@ -104,7 +116,22 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggl
   // would close every pty at once, which can crash node-pty on Windows.
   return (
     <>
-      <Paper elevation={10} className={open ? "terminalWorkspace" : "terminalWorkspace isMinimized"}>
+      <Paper
+        elevation={10}
+        className={open ? `terminalWorkspace ${gridClassName}` : `terminalWorkspace isMinimized ${gridClassName}`}
+        onDragOver={onGridDragOver}
+        onDrop={onGridDrop}
+      >
+        {gridDraggable ? <GridDragHandle onDragStart={onGridDragStart} /> : null}
+        {resizable ? (
+          <Box
+            className="terminalResizeHandle"
+            onPointerDown={onResizeStart}
+            role="separator"
+            aria-label="Redimensionar terminal verticalmente"
+            aria-orientation="horizontal"
+          />
+        ) : null}
         <Stack className="terminalTabBar" direction="row" sx={{ alignItems: "center", gap: 0.6 }}>
         <Stack className="terminalTabs" direction="row" sx={{ gap: 0.6 }}>
           {terminals.map((terminal, index) => (
@@ -119,7 +146,7 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggl
                 className={statuses[terminal.id] === "online" ? "terminalTabDot isOnline" : "terminalTabDot"}
               />
               <Typography component="span" className="terminalTabLabel">
-                {terminal.title || `Terminal ${index + 1}`}
+                {terminal.title || `Terminal ${terminal.number ?? index + 1}`}
               </Typography>
               <IconButton
                 className="terminalTabClose"
@@ -140,6 +167,23 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggl
             <Icon name="add" fontSize="small" />
           </IconButton>
         </Tooltip>
+        <Box className="terminalZoom" aria-label="Zoom do terminal">
+          <Tooltip title="Diminuir zoom">
+            <span>
+              <IconButton size="small" disabled={fontSize <= 10} onClick={() => changeZoom(-1)} aria-label="Diminuir zoom do terminal">
+                <Typography component="span" className="terminalZoomSymbol">A−</Typography>
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Typography variant="caption" className="terminalZoomValue">{fontSize}px</Typography>
+          <Tooltip title="Aumentar zoom">
+            <span>
+              <IconButton size="small" disabled={fontSize >= 22} onClick={() => changeZoom(1)} aria-label="Aumentar zoom do terminal">
+                <Typography component="span" className="terminalZoomSymbol">A+</Typography>
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
         <Tooltip title="Minimizar terminal">
           <IconButton className="terminalMinimize" size="small" onClick={onToggleOpen} aria-label="Minimizar terminal">
             <Icon name="minimize" fontSize="small" />
@@ -154,6 +198,7 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggl
             active={open && terminal.id === activeTerminalId}
             cwd={terminal.cwd || projectPath}
             terminalId={terminal.id}
+            fontSize={fontSize}
             onStatus={reportStatus}
           />
         ))}
@@ -163,7 +208,16 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({ open, onToggl
   );
 });
 
-function TerminalPane({ active, cwd, terminalId, onStatus }) {
+function GridDragHandle({ onDragStart }) {
+  return (
+    <Box className="gridDragHandle" draggable onDragStart={onDragStart} aria-label="Arraste para trocar a posição desta tela">
+      <Icon name="grid" fontSize="inherit" />
+      Mover
+    </Box>
+  );
+}
+
+function TerminalPane({ active, cwd, terminalId, fontSize, onStatus }) {
   const terminalHostRef = useRef(null);
   const terminalRef = useRef(null);
   const fitAddonRef = useRef(null);
@@ -183,15 +237,15 @@ function TerminalPane({ active, cwd, terminalId, onStatus }) {
 
     const terminal = new Terminal({
       allowProposedApi: false,
-      allowTransparency: false,
+      allowTransparency: true,
       convertEol: true,
       cursorBlink: true,
       cursorStyle: "bar",
       fontFamily: '"Cascadia Code", "SFMono-Regular", Consolas, monospace',
-      fontSize: 13,
+      fontSize,
       lineHeight: 1.18,
       theme: {
-        background: "#07090d",
+        background: "#00000000",
         foreground: "#f2ecdd",
         cursor: "#ff8c42",
         selectionBackground: "#40312a",
@@ -321,6 +375,20 @@ function TerminalPane({ active, cwd, terminalId, onStatus }) {
     });
   }, [active]);
 
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    const fitAddon = fitAddonRef.current;
+    if (!terminal || !fitAddon) return;
+    terminal.options.fontSize = fontSize;
+    window.requestAnimationFrame(() => {
+      fitAddon.fit();
+      const socket = socketRef.current;
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: "resize", cols: terminal.cols, rows: terminal.rows }));
+      }
+    });
+  }, [fontSize]);
+
   return (
     <Paper elevation={4} className={active ? "terminalPane isActive" : "terminalPane isHidden"}>
       <Box
@@ -400,12 +468,20 @@ function appendPendingOutput(current, incoming) {
   return `${notice}${next.slice(-(MAX_PENDING_OUTPUT - notice.length))}`;
 }
 
-function createTerminalDescriptor({ title, cwd } = {}) {
+function createTerminalDescriptor({ number, title, cwd } = {}) {
   return {
     id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    title: title || "Terminal",
+    number: Number.isInteger(number) && number > 0 ? number : 1,
+    title: title || `Terminal ${number ?? 1}`,
     cwd: cwd || "",
   };
+}
+
+function firstAvailableTerminalNumber(items) {
+  const usedNumbers = new Set(items.map((terminal) => terminal.number).filter(Number.isInteger));
+  let number = 1;
+  while (usedNumbers.has(number)) number += 1;
+  return number;
 }
 
 function createTerminalUrl(cwd, cols, rows) {

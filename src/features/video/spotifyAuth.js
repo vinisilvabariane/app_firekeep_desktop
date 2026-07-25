@@ -7,6 +7,8 @@ const SCOPES = [
   "user-read-private",
   "user-read-playback-state",
   "user-modify-playback-state",
+  "playlist-read-private",
+  "playlist-read-collaborative",
 ];
 
 // O Client ID identifica o aplicativo, nao a conta do usuario. Ele pode ser
@@ -56,11 +58,19 @@ export async function startSpotifyLogin(clientId) {
     redirect_uri: getRedirectUri(),
     state,
   }).toString();
-  window.location.href = url.toString();
+  const authorizationUrl = url.toString();
+  if (typeof window.firekeepWindow?.spotifyLogin === "function") {
+    const callbackUrl = await window.firekeepWindow.spotifyLogin(authorizationUrl, getRedirectUri());
+    return completeSpotifyLogin(clientId, callbackUrl);
+  }
+
+  window.location.href = authorizationUrl;
+  return null;
 }
 
-export async function completeSpotifyLogin(clientId) {
-  const params = new URLSearchParams(window.location.search);
+export async function completeSpotifyLogin(clientId, callbackUrl = window.location.href) {
+  const callback = new URL(callbackUrl, window.location.origin);
+  const params = callback.searchParams;
   const code = params.get("code");
   const returnedState = params.get("state");
   const error = params.get("error");

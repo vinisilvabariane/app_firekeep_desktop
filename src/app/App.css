@@ -7,7 +7,8 @@
   --muted: rgba(242, 236, 221, 0.6);
   --ember: #ff8c42;
   --ember-deep: #e5642b;
-  --seam: rgba(255, 140, 66, 0.55);
+  --ember-rgb: 255, 140, 66;
+  --seam: rgba(var(--ember-rgb), 0.55);
   --mint: #86c7c0;
   --wine: #40151e;
   --display: "Fraunces", Georgia, serif;
@@ -19,6 +20,10 @@
   --tools: 300px;
   --terminal-split-height: clamp(250px, 34vh, 390px);
   --workspace-left: calc(var(--edge) + var(--rail) + var(--gap));
+  --workspace-right: calc(var(--edge) + var(--tools) + var(--gap));
+  --grid-pane-width: calc(
+    (100vw - var(--workspace-left) - var(--workspace-right) - var(--gap)) / 2
+  );
   position: relative;
   min-height: 100vh;
   overflow: hidden;
@@ -33,7 +38,7 @@
 /* One ember-tinted scrollbar everywhere inside the app. */
 .app * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 140, 66, 0.42) transparent;
+  scrollbar-color: rgba(var(--ember-rgb), 0.42) transparent;
 }
 
 .app *::-webkit-scrollbar {
@@ -48,12 +53,12 @@
 .app *::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
   border-radius: 999px;
-  background-color: rgba(255, 140, 66, 0.32);
+  background-color: rgba(var(--ember-rgb), 0.32);
   background-clip: padding-box;
 }
 
 .app *::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 140, 66, 0.6);
+  background-color: rgba(var(--ember-rgb), 0.6);
   background-clip: padding-box;
 }
 
@@ -63,7 +68,7 @@
 
 /* The terminal keeps a slightly warmer, more present scrollbar. */
 .terminalHost .xterm-viewport {
-  scrollbar-color: rgba(255, 140, 66, 0.5) transparent;
+  scrollbar-color: rgba(var(--ember-rgb), 0.5) transparent;
 }
 
 .terminalHost .xterm-viewport::-webkit-scrollbar {
@@ -73,12 +78,12 @@
 .terminalHost .xterm-viewport::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
   border-radius: 999px;
-  background-color: rgba(255, 140, 66, 0.42);
+  background-color: rgba(var(--ember-rgb), 0.42);
   background-clip: padding-box;
 }
 
 .terminalHost .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 156, 84, 0.7);
+  background-color: rgba(var(--ember-rgb), 0.7);
   background-clip: padding-box;
 }
 
@@ -108,8 +113,8 @@
   inset: 0;
   overflow: hidden;
   background:
-    radial-gradient(140% 100% at 50% 118%, rgba(255, 140, 66, 0.22), transparent 46%),
-    radial-gradient(120% 90% at 50% 120%, rgba(229, 100, 43, 0.34), transparent 40%),
+    radial-gradient(140% 100% at 50% 118%, rgba(var(--ember-rgb), 0.22), transparent 46%),
+    radial-gradient(120% 90% at 50% 120%, rgba(var(--ember-rgb), 0.34), transparent 40%),
     linear-gradient(180deg, #0a0d16 0%, #0b0a10 52%, #140b0c 100%);
 }
 
@@ -120,7 +125,7 @@
   width: 120vw;
   height: 96vh;
   transform: translateX(-50%);
-  background: radial-gradient(50% 60% at 50% 100%, rgba(255, 156, 84, 0.5), rgba(229, 100, 43, 0.16) 42%, transparent 66%);
+  background: radial-gradient(50% 60% at 50% 100%, rgba(var(--ember-rgb), 0.5), rgba(var(--ember-rgb), 0.16) 42%, transparent 66%);
   filter: blur(12px);
   transform-origin: center bottom;
   animation: emberBreath 7.5s ease-in-out infinite;
@@ -132,8 +137,8 @@
   right: 12%;
   bottom: 20vh;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--seam), rgba(255, 156, 84, 0.35), var(--seam), transparent);
-  box-shadow: 0 0 28px rgba(255, 140, 66, 0.4);
+  background: linear-gradient(90deg, transparent, var(--seam), rgba(var(--ember-rgb), 0.35), var(--seam), transparent);
+  box-shadow: 0 0 28px rgba(var(--ember-rgb), 0.4);
   opacity: 0.7;
 }
 
@@ -141,11 +146,11 @@
   position: absolute;
   inset: 0;
   background-image:
-    radial-gradient(1.5px 1.5px at 30% 72%, rgba(255, 176, 110, 0.9), transparent 60%),
-    radial-gradient(1.5px 1.5px at 62% 64%, rgba(255, 156, 84, 0.8), transparent 60%),
-    radial-gradient(1px 1px at 46% 80%, rgba(255, 200, 150, 0.85), transparent 60%),
-    radial-gradient(1px 1px at 74% 78%, rgba(255, 176, 110, 0.7), transparent 60%),
-    radial-gradient(1px 1px at 22% 60%, rgba(255, 156, 84, 0.7), transparent 60%);
+    radial-gradient(1.5px 1.5px at 30% 72%, rgba(var(--ember-rgb), 0.9), transparent 60%),
+    radial-gradient(1.5px 1.5px at 62% 64%, rgba(var(--ember-rgb), 0.8), transparent 60%),
+    radial-gradient(1px 1px at 46% 80%, rgba(var(--ember-rgb), 0.85), transparent 60%),
+    radial-gradient(1px 1px at 74% 78%, rgba(var(--ember-rgb), 0.7), transparent 60%),
+    radial-gradient(1px 1px at 22% 60%, rgba(var(--ember-rgb), 0.7), transparent 60%);
   animation: emberRise 9s linear infinite;
 }
 
@@ -293,6 +298,17 @@
   color: var(--text);
 }
 
+.windowVersion {
+  padding: 2px 6px;
+  border: 1px solid rgba(242, 236, 221, 0.12);
+  border-radius: 5px;
+  color: rgba(242, 236, 221, 0.52);
+  background: rgba(7, 9, 13, 0.28);
+  font-family: var(--mono);
+  font-size: 0.61rem;
+  line-height: 1;
+}
+
 .windowControls {
   display: flex;
   flex-direction: row;
@@ -334,6 +350,8 @@
   background:
     linear-gradient(145deg, rgba(255, 140, 66, 0.1), transparent 58%),
     rgba(7, 9, 13, 0.52);
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
   transform: translateX(-50%);
   -webkit-app-region: no-drag;
@@ -501,6 +519,125 @@
   background: var(--ember);
 }
 
+.spotifyAccountRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(242, 236, 221, 0.1);
+  border-radius: 10px;
+  background:
+    linear-gradient(110deg, rgba(30, 215, 96, 0.13), transparent 66%),
+    rgba(242, 236, 221, 0.035);
+}
+
+.spotifyAccountRow > :nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+.spotifyAccountRow .MuiButton-root {
+  min-width: auto;
+  padding: 4px 6px;
+  font-size: 0.67rem;
+}
+
+.spotifyMark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: #071109;
+  background: #1ed760;
+  font-size: 0.75rem;
+  font-weight: 950;
+}
+
+.spotifyPlaylistList {
+  display: grid;
+  gap: 5px;
+  max-height: 318px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.spotifyPlaylistRow {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px;
+  border: 1px solid rgba(242, 236, 221, 0.08);
+  border-radius: 9px;
+  color: var(--text);
+  background: rgba(242, 236, 221, 0.035);
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.spotifyPlaylistRow:hover {
+  border-color: color-mix(in srgb, var(--ember) 60%, transparent);
+  background: color-mix(in srgb, var(--ember) 11%, rgba(242, 236, 221, 0.04));
+  transform: translateX(2px);
+}
+
+.spotifyPlaylistRow.isActive {
+  border-color: rgba(30, 215, 96, 0.72);
+  background: linear-gradient(100deg, rgba(30, 215, 96, 0.18), rgba(242, 236, 221, 0.04));
+}
+
+.spotifyPlaylistRow > svg {
+  color: #1ed760;
+}
+
+.spotifyPlaylistRow img,
+.spotifyPlaylistCover {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.spotifyPlaylistCover {
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  background: linear-gradient(135deg, #1ed760, #137a39);
+}
+
+.spotifyLibraryHeading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 4px 2px 1px;
+}
+
+.spotifyLibraryHeading > :last-child {
+  min-width: 22px;
+  padding: 2px 6px;
+  border: 1px solid rgba(30, 215, 96, 0.34);
+  border-radius: 999px;
+  color: #a9f7c6;
+  background: rgba(30, 215, 96, 0.09);
+  font-family: var(--mono);
+  text-align: center;
+}
+
+.spotifyEyebrow {
+  color: #88dca8;
+  font-family: var(--mono);
+  font-size: 0.6rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .musicPlayer {
   display: grid;
   gap: 9px;
@@ -510,6 +647,41 @@
   background:
     radial-gradient(120% 80% at 50% 120%, rgba(255, 140, 66, 0.1), transparent 60%),
     rgba(255, 140, 66, 0.05);
+}
+
+.spotifyNowArt {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 16 / 6;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(30, 215, 96, 0.32);
+  border-radius: 9px;
+  color: #d9ffe7;
+  background:
+    repeating-radial-gradient(circle at 50% 120%, rgba(30, 215, 96, 0.2) 0 1px, transparent 2px 13px),
+    linear-gradient(118deg, #0d3220, #0b1110 62%);
+}
+
+.spotifyNowArt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(30, 215, 96, 0.14), transparent 42%, rgba(255, 140, 66, 0.12));
+  pointer-events: none;
+}
+
+.spotifyNowArt img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.spotifyNowArt svg {
+  position: relative;
+  z-index: 1;
+  font-size: 2rem;
 }
 
 .musicNowPlaying {
@@ -681,23 +853,209 @@
   overscroll-behavior: contain;
 }
 
-.appVersionBadge {
-  position: fixed;
-  right: 14px;
-  bottom: 10px;
-  z-index: 16;
-  max-width: calc(100vw - 28px);
-  padding: 3px 7px;
-  border: 1px solid rgba(242, 236, 221, 0.1);
-  border-radius: 7px;
-  color: rgba(242, 236, 221, 0.48);
-  background: rgba(7, 9, 13, 0.28);
+.app.widgetsClosed .rightWidgets {
+  display: none;
+}
+
+.gridDragHandle {
+  position: absolute;
+  z-index: 40;
+  top: 4px;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 21px;
+  padding: 0 9px;
+  cursor: grab;
+  transform: translateX(-50%);
+  border: 1px solid rgba(242, 236, 221, 0.12);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(7, 9, 13, 0.74);
   font-family: var(--mono);
-  font-size: 0.68rem;
-  font-weight: 700;
-  line-height: 1.2;
-  pointer-events: none;
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   user-select: none;
+}
+
+.gridDragHandle:hover {
+  color: var(--text);
+  border-color: rgba(var(--ember-rgb), 0.54);
+  background: rgba(var(--ember-rgb), 0.13);
+}
+
+.gridDragHandle:active {
+  cursor: grabbing;
+}
+
+.app.widgetsClosed .terminalWorkspace,
+.app.widgetsClosed .codeEditor,
+.app.widgetsClosed .miniBrowser,
+.app.widgetsClosed .aiWorkspace {
+  right: var(--edge);
+}
+
+.app.widgetsClosed {
+  --workspace-right: var(--edge);
+}
+
+.aiWorkspace {
+  position: fixed;
+  top: var(--top);
+  left: var(--workspace-left);
+  right: calc(var(--edge) + var(--tools) + var(--gap));
+  bottom: var(--edge);
+  z-index: 16;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid rgba(134, 199, 192, 0.2);
+  border-radius: 14px !important;
+  background: linear-gradient(145deg, rgba(134, 199, 192, 0.08), transparent 38%), rgba(7, 9, 13, 0.72) !important;
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+}
+
+.aiHeader,
+.aiComposer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.aiHeader {
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(242, 236, 221, 0.09);
+}
+
+.aiMark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--ink);
+  background: linear-gradient(135deg, #c7f2ed, var(--mint));
+}
+
+.aiTitle {
+  color: var(--text);
+  font-family: var(--mono) !important;
+  font-size: 0.82rem !important;
+  font-weight: 800 !important;
+}
+
+.aiTranscript {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px;
+}
+
+.aiWelcome,
+.aiEmpty {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  height: 100%;
+  max-width: 520px;
+  margin: auto;
+  color: var(--text);
+  text-align: center;
+}
+
+.aiEmpty > svg {
+  color: var(--mint);
+  filter: drop-shadow(0 0 18px rgba(134, 199, 192, 0.28));
+}
+
+.aiMessage {
+  max-width: min(780px, 86%);
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(242, 236, 221, 0.09);
+  border-radius: 4px 12px 12px 12px;
+  background: rgba(242, 236, 221, 0.045);
+}
+
+.aiMessage.isUser {
+  margin-left: auto;
+  border-color: rgba(255, 140, 66, 0.24);
+  border-radius: 12px 4px 12px 12px;
+  background: rgba(255, 140, 66, 0.1);
+}
+
+.aiMessageLabel,
+.aiThinking {
+  color: var(--mint) !important;
+  font-family: var(--mono) !important;
+  font-size: 0.66rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.aiMessage.isUser .aiMessageLabel {
+  color: var(--ember) !important;
+}
+
+.aiMessageText {
+  margin-top: 5px;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.aiComposer {
+  border-top: 1px solid rgba(242, 236, 221, 0.09);
+}
+
+.aiComposer textarea {
+  min-height: 42px;
+  flex: 1;
+  resize: none;
+  border: 1px solid rgba(242, 236, 221, 0.12);
+  border-radius: 10px;
+  padding: 9px 42px 9px 11px;
+  outline: none;
+  color: var(--text);
+  background: rgba(242, 236, 221, 0.045);
+}
+
+.aiComposer textarea:focus {
+  border-color: rgba(134, 199, 192, 0.55);
+  box-shadow: 0 0 0 3px rgba(134, 199, 192, 0.08);
+}
+
+.aiSendButton,
+.aiAbortButton {
+  margin-left: -47px !important;
+  z-index: 1;
+}
+
+.aiSendButton {
+  color: var(--ink) !important;
+  background: var(--mint) !important;
+}
+
+.aiAbortButton {
+  color: #ffe8df !important;
+  background: rgba(229, 93, 69, 0.42) !important;
+}
+
+.aiError {
+  position: absolute;
+  right: 14px;
+  bottom: 82px;
+  max-width: min(500px, calc(100% - 28px));
+  padding: 8px 10px;
+  border: 1px solid rgba(229, 93, 69, 0.34);
+  border-radius: 8px;
+  color: #ffe8df;
+  background: rgba(86, 21, 22, 0.92);
+  font-size: 0.78rem;
 }
 
 /* MUI v9 Stack drops gap/alignItems/justifyContent here, so lay rows out in CSS. */
@@ -783,6 +1141,88 @@
   color: var(--ember);
   border-color: rgba(255, 140, 66, 0.4);
   background: rgba(255, 140, 66, 0.08);
+}
+
+.musicHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.musicExpandButton {
+  color: var(--muted) !important;
+}
+
+.musicExpandButton:hover {
+  color: var(--ember) !important;
+  background: rgba(255, 140, 66, 0.1) !important;
+}
+
+.musicPanel.isExpanded {
+  position: fixed;
+  z-index: 31;
+  top: var(--top);
+  right: var(--workspace-right);
+  bottom: var(--edge);
+  left: var(--workspace-left);
+  gap: 14px;
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid rgba(255, 140, 66, 0.28);
+  border-radius: 14px !important;
+  background:
+    radial-gradient(90% 80% at 100% 0%, rgba(30, 215, 96, 0.1), transparent 58%),
+    linear-gradient(145deg, rgba(134, 199, 192, 0.08), transparent 44%),
+    var(--panel-strong) !important;
+}
+
+.musicPanel.isExpanded .musicPlayer {
+  grid-template-columns: minmax(160px, 22%) minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto;
+  column-gap: 22px;
+  min-height: 164px;
+  padding: 16px;
+}
+
+.musicPanel.isExpanded .spotifyNowArt {
+  grid-column: 1;
+  grid-row: 1 / 5;
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+.musicPanel.isExpanded .musicNowPlaying,
+.musicPanel.isExpanded .musicSeek,
+.musicPanel.isExpanded .musicTimes,
+.musicPanel.isExpanded .musicControls,
+.musicPanel.isExpanded .musicVolume {
+  grid-column: 2;
+}
+
+.musicPanel.isExpanded .musicControls {
+  justify-content: flex-start;
+}
+
+.musicPanel.isExpanded .MuiCollapse-root {
+  overflow: visible;
+}
+
+.musicPanel.isExpanded .spotifyPlaylistList {
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  max-height: none;
+  padding: 4px 2px 12px;
+}
+
+.musicPanel.isExpanded .spotifyPlaylistRow {
+  grid-template-columns: 46px minmax(0, 1fr) 18px;
+  min-height: 58px;
+  padding: 6px;
+}
+
+.musicPanel.isExpanded .spotifyPlaylistRow img,
+.musicPanel.isExpanded .spotifyPlaylistCover {
+  width: 46px;
+  height: 46px;
 }
 
 .pomodoroWidget,
@@ -903,6 +1343,67 @@
   text-align: right;
 }
 
+.colorSetting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.colorControl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.colorPicker {
+  width: 31px;
+  height: 31px;
+  padding: 2px;
+  cursor: pointer;
+  border: 1px solid rgba(var(--ember-rgb), 0.5);
+  border-radius: 8px;
+  background: rgba(242, 236, 221, 0.08);
+}
+
+.colorPicker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.colorPicker::-webkit-color-swatch {
+  border: 0;
+  border-radius: 5px;
+}
+
+.colorSwatches {
+  display: flex;
+  gap: 7px;
+  margin-top: 4px;
+}
+
+.colorSwatch {
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: var(--swatch-color);
+  box-shadow: 0 0 0 1px rgba(242, 236, 221, 0.2);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.colorSwatch:hover,
+.colorSwatch:focus-visible {
+  transform: scale(1.14);
+}
+
+.colorSwatch.isSelected {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px rgba(var(--ember-rgb), 0.55);
+}
+
 .softDivider {
   border-color: rgba(242, 236, 221, 0.1) !important;
 }
@@ -921,7 +1422,9 @@
   border-radius: 14px !important;
   background:
     linear-gradient(165deg, rgba(64, 21, 30, 0.12), transparent 44%),
-    rgba(8, 11, 16, 0.54) !important;
+    rgba(8, 11, 16, 0.32) !important;
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
   contain: layout paint style;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
@@ -934,8 +1437,47 @@
   z-index: 10;
 }
 
+.app.terminalResized .terminalWorkspace {
+  top: auto;
+  height: var(--terminal-split-height);
+}
+
 .terminalWorkspace.isMinimized {
   display: none;
+}
+
+.terminalResizeHandle,
+.browserResizeHandle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  height: 10px;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.terminalResizeHandle::after,
+.browserResizeHandle::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 18px;
+  right: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(242, 236, 221, 0.15);
+  opacity: 0;
+  transition: opacity 140ms ease, background 140ms ease;
+}
+
+.terminalResizeHandle:hover::after,
+.terminalResizeHandle:active::after,
+.browserResizeHandle:hover::after,
+.browserResizeHandle:active::after {
+  opacity: 1;
+  background: var(--ember);
 }
 
 .terminalHeader {
@@ -1410,22 +1952,77 @@
   left: var(--workspace-left);
   right: calc(var(--edge) + var(--tools) + var(--gap));
   bottom: var(--edge);
+  z-index: 12;
   z-index: 11;
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 12px;
   border-radius: 14px !important;
-  background:
-    linear-gradient(165deg, rgba(134, 199, 192, 0.08), transparent 40%),
-    rgba(8, 11, 16, 0.62) !important;
+  border-color: rgba(242, 236, 221, 0.12) !important;
+  background: rgba(8, 11, 16, 0.48) !important;
   contain: layout paint style;
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
   box-shadow: 0 28px 70px rgba(0, 0, 0, 0.44) !important;
 }
 
 .app.codeTerminalSplit .codeEditor {
   bottom: calc(var(--edge) + var(--terminal-split-height) + var(--gap));
   z-index: 10;
+}
+
+.terminalZoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding: 1px 3px;
+  border: 1px solid rgba(242, 236, 221, 0.1);
+  border-radius: 8px;
+  background: rgba(7, 9, 13, 0.28);
+}
+
+.terminalZoom .MuiIconButton-root {
+  width: 25px;
+  height: 25px;
+}
+
+.terminalZoomSymbol,
+.terminalZoomValue {
+  font-family: var(--mono) !important;
+  font-size: 0.62rem !important;
+  line-height: 1;
+}
+
+.terminalZoomSymbol {
+  color: var(--muted);
+  font-weight: 800 !important;
+}
+
+.terminalZoomValue {
+  min-width: 31px;
+  color: var(--text);
+  text-align: center;
+}
+
+/* As outras ferramentas continuam disponiveis enquanto um arquivo esta aberto. */
+.app.editorOpen .miniBrowser:not(.isMinimized),
+.app.editorOpen .aiWorkspace {
+  display: grid;
+}
+
+.app.editorOpen .fileExplorer,
+.app.editorOpen .terminalWorkspace:not(.isMinimized) {
+  z-index: 13;
+}
+
+.app.editorOpen .miniBrowser:not(.isMinimized) {
+  z-index: 14;
+}
+
+.app.editorOpen .aiWorkspace {
+  z-index: 16;
 }
 
 .codeEditorHeader {
@@ -1467,9 +2064,18 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(242, 236, 221, 0.08);
   border-radius: 10px;
-  background: rgba(7, 9, 13, 0.5);
+  background: rgba(7, 9, 13, 0.16);
+}
+
+.codeEditor .monaco-editor,
+.codeEditor .monaco-editor .margin,
+.codeEditor .monaco-editor-background,
+.codeEditor .monaco-editor .overflow-guard {
+  background-color: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .codeEditorLoading {
@@ -1588,7 +2194,9 @@
   border-radius: 8px;
   background:
     linear-gradient(180deg, rgba(242, 236, 221, 0.04), transparent 34%),
-    rgba(7, 9, 13, 0.34) !important;
+    rgba(7, 9, 13, 0.14) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .terminalPane.isActive {
@@ -1627,6 +2235,7 @@
   min-height: 0;
   padding: 8px 10px 10px;
   overflow: hidden;
+  background: rgba(7, 9, 13, 0.08);
 }
 
 .terminalHost .xterm {
@@ -1699,15 +2308,104 @@
     0 18px 44px rgba(0, 0, 0, 0.34) !important;
 }
 
-.app.workspaceGrid.browserOpen.terminalOpen .terminalWorkspace {
-  top: auto;
-  height: var(--terminal-split-height);
-  z-index: 10;
+.miniBrowser.isMinimized {
+  display: none;
 }
 
-.app.workspaceGrid.browserOpen.terminalOpen .miniBrowser {
-  bottom: calc(var(--edge) + var(--terminal-split-height) + var(--gap));
-  z-index: 9;
+.app.workspaceGrid {
+  --grid-left: var(--workspace-left);
+  --grid-right: var(--workspace-right);
+  --grid-width: calc(100vw - var(--grid-left) - var(--grid-right));
+  --grid-height: calc(100vh - var(--top) - var(--edge));
+  --grid-half-width: calc((var(--grid-width) - var(--gap)) / 2);
+  --grid-half-height: calc((var(--grid-height) - var(--gap)) / 2);
+  --grid-third-width: calc((var(--grid-width) - (var(--gap) * 2)) / 3);
+}
+
+/* Painéis no grid preservam seus próprios controles; apenas a moldura passa
+   a ocupar uma célula calculada a partir da quantidade de telas abertas. */
+.app.workspaceGrid .workspaceGridPane {
+  top: var(--top) !important;
+  left: var(--grid-left) !important;
+  right: auto !important;
+  bottom: auto !important;
+  z-index: 11 !important;
+}
+
+.app.workspaceGrid .gridCount1 {
+  width: var(--grid-width) !important;
+  height: var(--grid-height) !important;
+}
+
+.app.workspaceGrid .gridCount2 {
+  width: var(--grid-half-width) !important;
+  height: var(--grid-height) !important;
+}
+
+.app.workspaceGrid .gridCount2.gridPane1 {
+  left: calc(var(--grid-left) + var(--grid-half-width) + var(--gap)) !important;
+}
+
+.app.workspaceGrid .gridCount3,
+.app.workspaceGrid .gridCount4 {
+  width: var(--grid-half-width) !important;
+  height: var(--grid-half-height) !important;
+}
+
+.app.workspaceGrid .gridCount3.gridPane1,
+.app.workspaceGrid .gridCount4.gridPane1,
+.app.workspaceGrid .gridCount4.gridPane3 {
+  left: calc(var(--grid-left) + var(--grid-half-width) + var(--gap)) !important;
+}
+
+.app.workspaceGrid .gridCount3.gridPane2 {
+  top: calc(var(--top) + var(--grid-half-height) + var(--gap)) !important;
+  width: var(--grid-width) !important;
+}
+
+.app.workspaceGrid .gridCount4.gridPane2,
+.app.workspaceGrid .gridCount4.gridPane3 {
+  top: calc(var(--top) + var(--grid-half-height) + var(--gap)) !important;
+}
+
+.app.workspaceGrid .gridCount5,
+.app.workspaceGrid .gridCount6 {
+  width: var(--grid-third-width) !important;
+  height: var(--grid-half-height) !important;
+}
+
+.app.workspaceGrid .gridCount5.gridPane1,
+.app.workspaceGrid .gridCount6.gridPane1,
+.app.workspaceGrid .gridCount6.gridPane4 {
+  left: calc(var(--grid-left) + var(--grid-third-width) + var(--gap)) !important;
+}
+
+.app.workspaceGrid .gridCount5.gridPane2,
+.app.workspaceGrid .gridCount6.gridPane2,
+.app.workspaceGrid .gridCount6.gridPane5 {
+  left: calc(var(--grid-left) + (var(--grid-third-width) + var(--gap)) * 2) !important;
+}
+
+.app.workspaceGrid .gridCount5.gridPane3,
+.app.workspaceGrid .gridCount5.gridPane4,
+.app.workspaceGrid .gridCount6.gridPane3,
+.app.workspaceGrid .gridCount6.gridPane4,
+.app.workspaceGrid .gridCount6.gridPane5 {
+  top: calc(var(--top) + var(--grid-half-height) + var(--gap)) !important;
+}
+
+.app.workspaceGrid .gridCount5.gridPane3,
+.app.workspaceGrid .gridCount5.gridPane4 {
+  width: var(--grid-half-width) !important;
+}
+
+.app.workspaceGrid .gridCount5.gridPane4 {
+  left: calc(var(--grid-left) + var(--grid-half-width) + var(--gap)) !important;
+}
+
+.app.browserResized .miniBrowser {
+  top: auto;
+  height: var(--browser-solo-height);
 }
 
 .app.workspaceGrid.browserOpen.terminalOpen .terminalWorkspace.isMinimized {
@@ -2157,6 +2855,10 @@
 }
 
 @media (max-width: 960px) {
+  .app {
+    --workspace-right: var(--edge);
+  }
+
   .fileExplorer,
   .rightWidgets {
     z-index: 9;
@@ -2164,7 +2866,8 @@
 
   .terminalWorkspace,
   .codeEditor,
-  .miniBrowser {
+  .miniBrowser,
+  .aiWorkspace {
     left: var(--workspace-left);
     right: var(--edge);
   }

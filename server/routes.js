@@ -30,7 +30,7 @@ import { toMessage } from "./utils.js";
 // bloquear o event loop com JSON.parse de payloads gigantes.
 const rawImageBody = express.raw({ type: "image/*", limit: "64mb" });
 
-export function registerApiRoutes(app, { root, storageRoot }) {
+export function registerApiRoutes(app, { root, storageRoot, openCode }) {
   const catalogOptions = { mirrorSeed: path.resolve(root) === path.resolve(storageRoot) };
   const respond = (handler, fallbackMessage) => async (request, response) => {
     try {
@@ -47,6 +47,39 @@ export function registerApiRoutes(app, { root, storageRoot }) {
   app.get("/api/workspace", (_request, response) => {
     response.json({ name: path.basename(root), path: root });
   });
+
+  app.get(
+    "/api/opencode/status",
+    respond(async () => openCode.status(), "Falha ao verificar o OpenCode."),
+  );
+
+  app.post(
+    "/api/opencode/start",
+    respond(async () => openCode.start(), "Falha ao iniciar o OpenCode."),
+  );
+
+  app.post(
+    "/api/opencode/session",
+    respond(async () => ({ session: await openCode.createSession() }), "Falha ao criar sessao AI."),
+  );
+
+  app.get(
+    "/api/opencode/session/:id/messages",
+    respond(async (request) => ({ messages: await openCode.messages(request.params.id) }), "Falha ao ler mensagens AI."),
+  );
+
+  app.post(
+    "/api/opencode/session/:id/message",
+    respond(
+      async (request) => ({ message: await openCode.sendMessage(request.params.id, String(request.body?.message ?? "")) }),
+      "Falha ao enviar mensagem ao OpenCode.",
+    ),
+  );
+
+  app.post(
+    "/api/opencode/session/:id/abort",
+    respond(async (request) => openCode.abort(request.params.id), "Falha ao interromper a resposta AI."),
+  );
 
   app.get(
     "/api/projects",

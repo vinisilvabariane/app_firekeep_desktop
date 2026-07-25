@@ -34,6 +34,10 @@ export function useStartupSync(setStoredSettings) {
         }
       }
 
+      if (Object.hasOwn(preferences, "dominantColor") && /^#[0-9a-f]{6}$/i.test(preferences.dominantColor)) {
+        nextPatch.dominantColor = preferences.dominantColor.toLowerCase();
+      }
+
       if (Object.keys(nextPatch).length) {
         setStoredSettings((current) => ({ ...normalizeSettings(current), ...nextPatch }));
       }

@@ -23,6 +23,7 @@ export const FileExplorer = memo(function FileExplorer({
   onToggleOpen,
   onOpenFile,
   activePath,
+  gridClassName = "",
 }) {
   const [dir, setDir] = useState(null);
   const [error, setError] = useState(null);
@@ -99,6 +100,24 @@ export const FileExplorer = memo(function FileExplorer({
     setDeleteTarget(target);
   }
 
+  async function copyTargetPath(target) {
+    if (!target?.path) return;
+
+    try {
+      if (typeof window.firekeepWindow?.copyToClipboard === "function") {
+        await window.firekeepWindow.copyToClipboard(target.path);
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(target.path);
+      } else {
+        throw new Error("Area de transferencia indisponivel.");
+      }
+      setContextMenu(null);
+      setError(null);
+    } catch (copyError) {
+      setError(`Nao foi possivel copiar o caminho: ${copyError.message}`);
+    }
+  }
+
   async function confirmDeleteEntry() {
     if (!deleteTarget) return;
     try {
@@ -143,7 +162,7 @@ export const FileExplorer = memo(function FileExplorer({
   }
 
   return (
-    <Paper elevation={10} className="fileExplorer">
+    <Paper elevation={10} className={`fileExplorer ${gridClassName}`}>
       <Box className="explorerHeader">
         <Box className="widgetIcon explorerIcon">
           <Icon name="folder" fontSize="small" />
@@ -266,6 +285,10 @@ export const FileExplorer = memo(function FileExplorer({
         }
         slotProps={{ paper: { className: "explorerContextMenu" } }}
       >
+        <MenuItem onClick={() => copyTargetPath(contextMenu?.target)}>
+          <Icon name="copy" fontSize="small" />
+          Copiar caminho
+        </MenuItem>
         {contextMenu?.target.type === "dir" ? (
           <MenuItem onClick={() => openCreateDraft("dir", contextMenu.target)}>
             <Icon name="folderAdd" fontSize="small" />

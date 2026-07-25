@@ -5,7 +5,7 @@ import Tooltip from "@mui/material/Tooltip";
 import firekeepSymbol from "../../assets/logo-sem-fundo.png";
 import { Icon } from "../../shared/Icon";
 
-export const WindowChrome = memo(function WindowChrome() {
+export const WindowChrome = memo(function WindowChrome({ version }) {
   const windowApi = globalThis.window?.firekeepWindow;
   if (!windowApi) return null;
 
@@ -14,6 +14,7 @@ export const WindowChrome = memo(function WindowChrome() {
       <Box className="windowBrand">
         <Box className="windowAppIcon" component="img" src={firekeepSymbol} alt="" />
         <span className="windowWordmark">Firekeep</span>
+        <span className="windowVersion">v{version}</span>
       </Box>
       <Box className="windowControls">
         <Tooltip title="Minimizar">

@@ -20,19 +20,6 @@ function clampVolume(value) {
   return Math.max(0, Math.min(100, Math.round(volume)));
 }
 
-function normalizeSpotifyUri(value) {
-  if (typeof value !== "string") return "";
-  const text = value.trim();
-  if (/^spotify:track:[A-Za-z0-9]+$/.test(text)) return text;
-  try {
-    const url = new URL(text);
-    const match = url.pathname.match(/\/track\/([A-Za-z0-9]+)/);
-    return match ? `spotify:track:${match[1]}` : "";
-  } catch {
-    return "";
-  }
-}
-
 export const MusicDock = memo(function MusicDock({
   musicMode,
   youtubeLinks,
@@ -42,13 +29,17 @@ export const MusicDock = memo(function MusicDock({
   onUpdateSettings,
 }) {
   const youtubePlayerRef = useRef(null);
+  const spotifyPlayerRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState({ current: 0, duration: 0 });
   const [draftLabel, setDraftLabel] = useState("");
   const [draftUrl, setDraftUrl] = useState("");
-  const [draftSpotifyTrack, setDraftSpotifyTrack] = useState(spotifyTrackUri);
   const [spotifyAuth, setSpotifyAuth] = useState(readSpotifyAuth);
   const [spotifyReady, setSpotifyReady] = useState(false);
+  const [spotifyProfile, setSpotifyProfile] = useState(null);
+  const [spotifyPlaylists, setSpotifyPlaylists] = useState([]);
+  const [spotifyLoading, setSpotifyLoading] = useState(false);
+  const [spotifyExpanded, setSpotifyExpanded] = useState(false);
   const [error, setError] = useState("");
   const [storedVolume, setStoredVolume] = useStoredState("firekeep:musicVolume", 80);
   const volume = clampVolume(storedVolume);
@@ -61,14 +52,10 @@ export const MusicDock = memo(function MusicDock({
   );
   const activeYoutubeVideo = useMemo(() => parseYouTube(activeYoutube?.url), [activeYoutube?.url]);
   const activeLabel = musicMode === "spotify"
-    ? spotifyTrackUri || "Spotify"
+    ? spotifyPlaylists.find((playlist) => playlist.uri === spotifyTrackUri)?.name || "Escolha uma playlist"
     : activeYoutube?.label || "Nenhum link do YouTube";
   const canPlay = musicMode === "spotify" ? Boolean(spotifyAuth?.access_token && spotifyReady && spotifyTrackUri) : Boolean(activeYoutubeVideo.id);
   const configuredSpotifyClientId = getSpotifyClientId(spotifyClientId);
-
-  useEffect(() => {
-    setDraftSpotifyTrack(spotifyTrackUri);
-  }, [spotifyTrackUri]);
 
   useEffect(() => {
     completeSpotifyLogin(configuredSpotifyClientId)
@@ -90,6 +77,25 @@ export const MusicDock = memo(function MusicDock({
       .catch(() => {});
   }, [configuredSpotifyClientId, musicMode]);
 
+  useEffect(() => {
+    if (!spotifyAuth?.access_token || musicMode !== "spotify") return undefined;
+    let active = true;
+    setSpotifyLoading(true);
+    loadSpotifyLibrary(spotifyAuth.access_token)
+      .then(({ profile, playlists }) => {
+        if (!active) return;
+        setSpotifyProfile(profile);
+        setSpotifyPlaylists(playlists);
+      })
+      .catch((libraryError) => {
+        if (active) setError(libraryError.message);
+      })
+      .finally(() => {
+        if (active) setSpotifyLoading(false);
+      });
+    return () => { active = false; };
+  }, [musicMode, spotifyAuth?.access_token]);
+
   function changeMode(nextMode) {
     setPlaying(false);
     setProgress({ current: 0, duration: 0 });
@@ -107,6 +113,7 @@ export const MusicDock = memo(function MusicDock({
 
   function togglePlay() {
     if (!canPlay) return;
+    if (musicMode === "spotify" && !playing) spotifyPlayerRef.current?.activate();
     setPlaying((current) => !current);
   }
 
@@ -179,26 +186,22 @@ export const MusicDock = memo(function MusicDock({
     deleteVideoLink(url).catch(() => {});
   }
 
-  function saveSpotifyConfig() {
-    const uri = normalizeSpotifyUri(draftSpotifyTrack);
-    if (draftSpotifyTrack.trim() && !uri) {
-      setError("Informe uma URI ou link de faixa do Spotify.");
-      return false;
-    }
-    onUpdateSettings({ spotifyTrackUri: uri, musicMode: "spotify" });
-    setError("");
-    return true;
-  }
-
   function connectSpotify() {
-    if (!saveSpotifyConfig()) return;
-    startSpotifyLogin(configuredSpotifyClientId).catch((loginError) => setError(loginError.message));
+    startSpotifyLogin(configuredSpotifyClientId)
+      .then((auth) => {
+        if (!auth) return;
+        setSpotifyAuth(auth);
+        onUpdateSettings({ musicMode: "spotify" });
+      })
+      .catch((loginError) => setError(loginError.message));
   }
 
   function disconnectSpotify() {
     clearSpotifyAuth();
     setSpotifyAuth(null);
     setSpotifyReady(false);
+    setSpotifyProfile(null);
+    setSpotifyPlaylists([]);
     setPlaying(false);
   }
 
@@ -219,8 +222,9 @@ export const MusicDock = memo(function MusicDock({
       ) : null}
       {musicMode === "spotify" && spotifyAuth?.access_token ? (
         <SpotifyPlayer
+          ref={spotifyPlayerRef}
           accessToken={spotifyAuth.access_token}
-          trackUri={spotifyTrackUri}
+          playbackUri={spotifyTrackUri}
           playing={playing}
           volume={volume}
           onReady={() => setSpotifyReady(true)}
@@ -237,9 +241,13 @@ export const MusicDock = memo(function MusicDock({
         draftLabel={draftLabel}
         draftUrl={draftUrl}
         spotifyConfigured={Boolean(configuredSpotifyClientId)}
-        spotifyTrack={draftSpotifyTrack}
         spotifyConnected={Boolean(spotifyAuth?.access_token)}
         spotifyReady={spotifyReady}
+        spotifyProfile={spotifyProfile}
+        spotifyPlaylists={spotifyPlaylists}
+        spotifyLoading={spotifyLoading}
+        spotifyPlaybackUri={spotifyTrackUri}
+        expanded={spotifyExpanded}
         error={error}
         playing={playing}
         progress={progress}
@@ -257,10 +265,15 @@ export const MusicDock = memo(function MusicDock({
         }}
         onRenameYoutubeLink={renameYoutubeLink}
         onRemoveYoutubeLink={removeYoutubeLink}
-        onSpotifyTrackChange={setDraftSpotifyTrack}
-        onSaveSpotifyConfig={saveSpotifyConfig}
         onConnectSpotify={connectSpotify}
         onDisconnectSpotify={disconnectSpotify}
+        onSelectSpotifyPlaylist={(playlist) => {
+          spotifyPlayerRef.current?.activate();
+          onUpdateSettings({ spotifyTrackUri: playlist.uri, musicMode: "spotify" });
+          setError("");
+          setPlaying(true);
+        }}
+        onToggleExpanded={() => setSpotifyExpanded((current) => !current)}
         onTogglePlay={togglePlay}
         onSkip={skip}
         onPrevious={previous}
@@ -270,3 +283,27 @@ export const MusicDock = memo(function MusicDock({
     </>
   );
 });
+
+async function loadSpotifyLibrary(accessToken) {
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  const [profileResponse, playlistsResponse] = await Promise.all([
+    fetch("https://api.spotify.com/v1/me", { headers }),
+    fetch("https://api.spotify.com/v1/me/playlists?limit=24", { headers }),
+  ]);
+  if (!profileResponse.ok || !playlistsResponse.ok) {
+    throw new Error("Não foi possível carregar sua biblioteca do Spotify.");
+  }
+  const profile = await profileResponse.json();
+  const data = await playlistsResponse.json();
+  return {
+    profile: { name: profile.display_name || profile.id || "Sua conta" },
+    playlists: (data.items || [])
+      .filter((playlist) => playlist?.uri && playlist?.name)
+      .map((playlist) => ({
+        uri: playlist.uri,
+        name: playlist.name,
+        total: playlist.tracks?.total ?? 0,
+        image: playlist.images?.[0]?.url || "",
+      })),
+  };
+}

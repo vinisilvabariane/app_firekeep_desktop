@@ -122,3 +122,29 @@ export function completeFileSystemPath(cwd, fragment) {
   });
   return requestJson(`/api/fs/complete?${query.toString()}`, { cache: "no-store" });
 }
+
+// --- OpenCode ---------------------------------------------------------------
+
+export function fetchOpenCodeStatus() {
+  return requestJson("/api/opencode/status", { cache: "no-store" });
+}
+
+export function startOpenCode() {
+  return requestJson("/api/opencode/start", jsonBody("POST", {}));
+}
+
+export function createOpenCodeSession() {
+  return requestJson("/api/opencode/session", jsonBody("POST", {}));
+}
+
+export function fetchOpenCodeMessages(sessionId) {
+  return requestJson(`/api/opencode/session/${encodeURIComponent(sessionId)}/messages`, { cache: "no-store" });
+}
+
+export function sendOpenCodeMessage(sessionId, message) {
+  return requestJson(`/api/opencode/session/${encodeURIComponent(sessionId)}/message`, jsonBody("POST", { message }));
+}
+
+export function abortOpenCodeMessage(sessionId) {
+  return requestJson(`/api/opencode/session/${encodeURIComponent(sessionId)}/abort`, jsonBody("POST", {}));
+}

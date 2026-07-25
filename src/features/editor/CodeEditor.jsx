@@ -15,7 +15,7 @@ import { badgeForFile, ensureEmberTheme, languageForFile } from "./monaco-setup"
 const MONO_STACK =
   '"JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, ui-monospace, monospace';
 
-export function CodeEditor({ file, onClose }) {
+export function CodeEditor({ file, onClose, gridClassName = "", gridDraggable = false, onGridDragStart, onGridDragOver, onGridDrop }) {
   const [initialContent, setInitialContent] = useState("");
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState("carregando");
@@ -138,7 +138,8 @@ export function CodeEditor({ file, onClose }) {
   }
 
   return (
-    <Paper elevation={12} className="codeEditor">
+    <Paper elevation={12} className={`codeEditor ${gridClassName}`} onDragOver={onGridDragOver} onDrop={onGridDrop}>
+      {gridDraggable ? <GridDragHandle onDragStart={onGridDragStart} /> : null}
       <Stack className="codeEditorHeader" direction="row" sx={{ alignItems: "center", gap: 1 }}>
         <Box className="widgetIcon explorerIcon">
           <Icon name="file" fontSize="small" />
@@ -224,5 +225,14 @@ export function CodeEditor({ file, onClose }) {
         )}
       </Box>
     </Paper>
+  );
+}
+
+function GridDragHandle({ onDragStart }) {
+  return (
+    <Box className="gridDragHandle" draggable onDragStart={onDragStart} aria-label="Arraste para trocar a posição desta tela">
+      <Icon name="grid" fontSize="inherit" />
+      Mover
+    </Box>
   );
 }

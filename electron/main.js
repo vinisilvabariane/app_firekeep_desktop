@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeImage, nativeTheme, session, shell } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain, nativeImage, nativeTheme, session, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
@@ -16,6 +16,7 @@ let firekeepServer;
 let mainWindow;
 let mainUrl;
 let recoveryPending = false;
+let spotifyAuthWindow;
 
 // Monaco, xterm, GIFs e superficies translucidas dependem da composicao da GPU.
 // O fallback por software continua disponivel para drivers problematicos.
@@ -29,6 +30,11 @@ app.setAppUserModelId("com.firekeep.desktop");
 app.setName("Firekeep");
 
 app.on("web-contents-created", (_event, contents) => {
+  contents.on("before-input-event", (inputEvent, input) => {
+    if (!isZoomShortcut(input)) return;
+    inputEvent.preventDefault();
+  });
+
   if (contents.getType() !== "webview") return;
 
   // Links target=_blank viram abas do navegador interno em vez de criarem
@@ -44,6 +50,11 @@ app.on("web-contents-created", (_event, contents) => {
     console.error(`[firekeep] pagina do navegador encerrada (${details.reason}, ${details.exitCode}).`);
   });
 });
+
+function isZoomShortcut(input) {
+  if (!input.control && !input.meta) return false;
+  return ["+", "-", "0", "Add", "Subtract"].includes(input.key);
+}
 
 async function createWindow() {
   nativeTheme.themeSource = "dark";
@@ -247,6 +258,97 @@ ipcMain.handle("window:toggle-fullscreen", (event) => {
 ipcMain.handle("window:close", (event) => {
   BrowserWindow.fromWebContents(event.sender)?.close();
 });
+
+ipcMain.handle("clipboard:write-text", (_event, value) => {
+  if (typeof value !== "string") throw new Error("Texto invalido para a area de transferencia.");
+  clipboard.writeText(value);
+});
+
+ipcMain.handle("spotify:login", async (event, authorizationUrl, redirectUri) => {
+  const owner = BrowserWindow.fromWebContents(event.sender);
+  if (!owner || !isSpotifyAuthorizationUrl(authorizationUrl) || !isLoopbackUrl(redirectUri)) {
+    throw new Error("Solicitacao de login do Spotify invalida.");
+  }
+
+  spotifyAuthWindow?.close();
+  spotifyAuthWindow = new BrowserWindow({
+    parent: owner,
+    modal: true,
+    width: 520,
+    height: 720,
+    minWidth: 420,
+    minHeight: 560,
+    title: "Entrar com Spotify",
+    autoHideMenuBar: true,
+    backgroundColor: "#07090d",
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+
+  return new Promise((resolve, reject) => {
+    const authWindow = spotifyAuthWindow;
+    let settled = false;
+
+    const finish = (value, error) => {
+      if (settled) return;
+      settled = true;
+      if (!authWindow.isDestroyed()) authWindow.close();
+      if (spotifyAuthWindow === authWindow) spotifyAuthWindow = null;
+      if (error) reject(error);
+      else resolve(value);
+    };
+
+    const captureCallback = (url) => {
+      if (!isSpotifyCallbackUrl(url, redirectUri)) return false;
+      finish(url);
+      return true;
+    };
+
+    authWindow.webContents.on("will-redirect", (redirectEvent, url) => {
+      if (!isSpotifyCallbackUrl(url, redirectUri)) return;
+      redirectEvent.preventDefault();
+      captureCallback(url);
+    });
+    authWindow.webContents.on("did-navigate", (_navigationEvent, url) => {
+      captureCallback(url);
+    });
+    authWindow.on("closed", () => {
+      if (!settled) finish(null, new Error("Login do Spotify cancelado."));
+    });
+    authWindow.loadURL(authorizationUrl).catch((error) => finish(null, error));
+  });
+});
+
+function isSpotifyAuthorizationUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname === "accounts.spotify.com" && url.pathname === "/authorize";
+  } catch {
+    return false;
+  }
+}
+
+function isLoopbackUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" && ["127.0.0.1", "[::1]"].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isSpotifyCallbackUrl(value, redirectUri) {
+  try {
+    const callback = new URL(value);
+    const redirect = new URL(redirectUri);
+    return callback.origin === redirect.origin && callback.pathname === redirect.pathname;
+  } catch {
+    return false;
+  }
+}
 
 app.whenReady().then(createWindow);
 

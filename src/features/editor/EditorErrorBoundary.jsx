@@ -27,7 +27,7 @@ export class EditorErrorBoundary extends Component {
   render() {
     if (this.state.error) {
       return (
-        <Paper elevation={12} className="codeEditor">
+        <Paper elevation={12} className={`codeEditor ${this.props.gridClassName ?? ""}`}>
           <Stack className="codeEditorHeader" direction="row" sx={{ alignItems: "center", gap: 1 }}>
             <Typography variant="body2" fontWeight={900} sx={{ flex: 1 }}>
               Nao consegui abrir o editor

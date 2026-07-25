@@ -52,8 +52,8 @@ if (ts?.javascriptDefaults && ts?.typescriptDefaults) {
 let themeReady = false;
 
 // Tema "Ember Keep": firelight para estrutura, moonlight para valores — o mesmo
-// espirito da paleta que o Prism usava. Fundo solido (nao transparente) para
-// evitar ghosting/artefatos de scroll do canvas do Monaco.
+// espirito da paleta que o Prism usava. O fundo fica translucido para deixar
+// o vidro fosco do editor aparecer tambem na area de codigo.
 export function ensureEmberTheme() {
   if (themeReady) return "ember-keep";
   monaco.editor.defineTheme("ember-keep", {
@@ -76,7 +76,11 @@ export function ensureEmberTheme() {
       { token: "delimiter", foreground: "f2ecdd8c" },
     ],
     colors: {
-      "editor.background": "#0a0d13",
+      focusBorder: "#00000000",
+      contrastBorder: "#00000000",
+      "editor.border": "#00000000",
+      "editorGroup.border": "#00000000",
+      "editor.background": "#00000000",
       "editor.foreground": "#f2ecdd",
       "editorLineNumber.foreground": "#f2ecdd45",
       "editorLineNumber.activeForeground": "#ff8c42",
@@ -87,7 +91,7 @@ export function ensureEmberTheme() {
       "editor.lineHighlightBorder": "#00000000",
       "editorIndentGuide.background1": "#f2ecdd12",
       "editorIndentGuide.activeBackground1": "#ff8c4240",
-      "editorGutter.background": "#0a0d13",
+      "editorGutter.background": "#00000000",
       "editorWidget.background": "#0b0e14",
       "editorWidget.border": "#ffffff14",
       "editorSuggestWidget.background": "#0b0e14",

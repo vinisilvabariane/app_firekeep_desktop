@@ -13,7 +13,7 @@ const HOME_TAB = { id: "home", title: "Hub", url: "" };
 const EMPTY_BROWSER_STATE = { tabs: [HOME_TAB], activeTabId: HOME_TAB.id, favorites: [] };
 const MAX_BROWSER_TABS = 8;
 
-export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange }) {
+export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange, onClose, resizable = false, onResizeStart, gridClassName = "", gridDraggable = false, onGridDragStart, onGridDragOver, onGridDrop }) {
   const webviewRef = useRef(null);
   const bodyRef = useRef(null);
   const [address, setAddress] = useState("");
@@ -220,15 +220,27 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange })
     navigate(favorite.url, { newTab });
   }
 
-  function closeBrowser() {
+  function minimizeBrowser() {
     onOpenChange(false);
     setNavState((current) => ({ ...current, loading: false }));
   }
 
+  function closeBrowser() {
+    onClose();
+  }
+
   return (
-    <>
-      {open ? (
-        <Paper elevation={14} className="miniBrowser">
+    <Paper elevation={14} className={open ? `miniBrowser ${gridClassName}` : `miniBrowser isMinimized ${gridClassName}`} onDragOver={onGridDragOver} onDrop={onGridDrop}>
+          {gridDraggable ? <GridDragHandle onDragStart={onGridDragStart} /> : null}
+          {resizable ? (
+            <Box
+              className="browserResizeHandle"
+              onPointerDown={onResizeStart}
+              role="separator"
+              aria-label="Redimensionar navegador verticalmente"
+              aria-orientation="horizontal"
+            />
+          ) : null}
           <Box className="miniBrowserTabs" role="tablist" aria-label="Abas do navegador">
             {safeTabs.map((tab) => (
               <Box
@@ -337,7 +349,12 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange })
               <Typography variant="caption" noWrap>
                 {currentHost || activeTab.title || "Hub"}
               </Typography>
-              <Tooltip title="Fechar navegador">
+              <Tooltip title="Minimizar navegador">
+                <IconButton size="small" onClick={minimizeBrowser} aria-label="Minimizar navegador">
+                  <Icon name="minimize" fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Fechar navegador definitivamente">
                 <IconButton size="small" onClick={closeBrowser} aria-label="Fechar navegador">
                   <Icon name="close" fontSize="small" />
                 </IconButton>
@@ -413,12 +430,18 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange })
               </Box>
             ) : null}
           </Box>
-        </Paper>
-      ) : null}
-
-    </>
+    </Paper>
   );
 });
+
+function GridDragHandle({ onDragStart }) {
+  return (
+    <Box className="gridDragHandle" draggable onDragStart={onDragStart} aria-label="Arraste para trocar a posição desta tela">
+      <Icon name="grid" fontSize="inherit" />
+      Mover
+    </Box>
+  );
+}
 
 // Cada aba mantem seu proprio webview vivo. Trocar de aba so muda a
 // visibilidade (CSS), entao a pagina nao recarrega e o processo continua ativo.

@@ -14,7 +14,7 @@ import { DEFAULT_SETTINGS, normalizeSettings } from "../features/video/defaultVi
 import { MusicDock } from "../features/video/MusicDock";
 import { Icon } from "../shared/Icon";
 import { useStoredState } from "../shared/storage";
-import { theme } from "./theme";
+import { createFirekeepTheme, theme } from "./theme";
 import { useStartupSync } from "./useStartupSync";
 import packageInfo from "../../package.json";
 import "./App.css";
@@ -23,6 +23,7 @@ const LazyCodeEditor = lazy(() => import("../features/editor/CodeEditor").then((
 const LazyFileExplorer = lazy(() => import("../features/explorer/FileExplorer").then(({ FileExplorer }) => ({ default: FileExplorer })));
 const LazySearchBrowser = lazy(() => import("../features/browser/SearchBrowser").then(({ SearchBrowser }) => ({ default: SearchBrowser })));
 const LazyTerminalWorkspace = lazy(() => import("../features/terminal/TerminalWorkspace").then(({ TerminalWorkspace }) => ({ default: TerminalWorkspace })));
+const LazyOpenCodeChat = lazy(() => import("../features/ai/OpenCodeChat").then(({ OpenCodeChat }) => ({ default: OpenCodeChat })));
 
 export default function App() {
   return (
@@ -40,12 +41,18 @@ export default function App() {
 function Firekeep() {
   const [storedSettings, setStoredSettings] = useStoredState("firekeep:settings:clean-v1", DEFAULT_SETTINGS);
   const settings = useMemo(() => normalizeSettings(storedSettings), [storedSettings]);
+  const activeTheme = useMemo(() => createFirekeepTheme(settings.dominantColor), [settings.dominantColor]);
   const [openFile, setOpenFile] = useState(null);
   const [sessionVisual, setSessionVisual] = useState(null);
   const [videoCurtainVisible, setVideoCurtainVisible] = useState(true);
   const [startupSettled, setStartupSettled] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [workspaceGrid, setWorkspaceGrid] = useState(false);
+  const [gridOrder, setGridOrder] = useState(() => (Array.isArray(storedSettings.gridOrder) ? storedSettings.gridOrder : []));
+  const [draggedGridPanel, setDraggedGridPanel] = useState(null);
+  const [terminalHeight, setTerminalHeight] = useState(null);
+  const [browserHeight, setBrowserHeight] = useState(null);
   const [explorerMounted, setExplorerMounted] = useState(false);
   const [terminalMounted, setTerminalMounted] = useState(false);
   const [browserMounted, setBrowserMounted] = useState(false);
@@ -77,7 +84,44 @@ function Firekeep() {
 
   const closeEditor = useCallback(() => setOpenFile(null), []);
   const toggleBrowser = useCallback(() => setBrowserOpen((current) => !current), []);
+  const closeBrowser = useCallback(() => {
+    setBrowserOpen(false);
+    setBrowserMounted(false);
+  }, []);
+  const toggleAi = useCallback(() => {
+    setAiOpen((current) => !current);
+  }, []);
+  const startVerticalResize = useCallback(
+    (target, event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
 
+      const minHeight = 220;
+      const maxHeight = Math.max(
+        minHeight,
+        window.innerHeight - 46 - 14 - (target === "grid" ? minHeight + 14 : 0),
+      );
+      const currentHeight = target === "browser" ? browserHeight : terminalHeight;
+      const panelSelector = target === "browser" ? ".miniBrowser" : ".terminalWorkspace";
+      const measuredHeight = document.querySelector(panelSelector)?.getBoundingClientRect().height;
+      const initialHeight = currentHeight ?? measuredHeight ?? Math.min(maxHeight, Math.round(window.innerHeight * 0.34));
+      const startY = event.clientY;
+      const updateHeight = target === "browser" ? setBrowserHeight : setTerminalHeight;
+
+      const onPointerMove = (moveEvent) => {
+        const nextHeight = Math.max(minHeight, Math.min(maxHeight, initialHeight + startY - moveEvent.clientY));
+        updateHeight(Math.round(nextHeight));
+      };
+      const onPointerUp = () => {
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerup", onPointerUp);
+      };
+
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp, { once: true });
+    },
+    [browserHeight, terminalHeight],
+  );
   // Terminais e explorador sempre comecam fechados ao iniciar o app.
   useEffect(() => {
     setStoredSettings((current) => ({ ...normalizeSettings(current), terminalOpen: false, explorerOpen: false }));
@@ -106,19 +150,91 @@ function Firekeep() {
 
   const shadeStrength = Math.max(0, Math.min(1, (100 - settings.visualBrightness) / 80));
   const deepShadeStrength = Math.max(0, Math.min(1, (20 - settings.visualBrightness) / 20));
+  const widgetsVisible = settings.pomodoroOpen || settings.clockOpen || settings.musicOpen || settings.visualOpen;
+  const visibleGridPanelIds = useMemo(
+    () => [
+      openFile ? "editor" : null,
+      browserOpen ? "browser" : null,
+      terminalOpen ? "terminal" : null,
+      aiOpen ? "ai" : null,
+    ].filter(Boolean),
+    [aiOpen, browserOpen, openFile, terminalOpen],
+  );
+  const gridPanelIds = useMemo(
+    () => [
+      ...gridOrder.filter((id) => visibleGridPanelIds.includes(id)),
+      ...visibleGridPanelIds.filter((id) => !gridOrder.includes(id)),
+    ],
+    [gridOrder, visibleGridPanelIds],
+  );
+  const moveGridPanel = useCallback(
+    (id, targetIndex) => {
+      setGridOrder((current) => {
+        const currentOrder = [
+          ...current.filter((item) => visibleGridPanelIds.includes(item)),
+          ...visibleGridPanelIds.filter((item) => !current.includes(item)),
+        ];
+        const next = currentOrder.filter((item) => item !== id);
+        next.splice(targetIndex, 0, id);
+        updateSettings({ gridOrder: next });
+        return next;
+      });
+    },
+    [updateSettings, visibleGridPanelIds],
+  );
+  const startGridDrag = useCallback((id, event) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", id);
+    setDraggedGridPanel(id);
+  }, []);
+  const allowGridDrop = useCallback((event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }, []);
+  const dropGridPanel = useCallback(
+    (targetId, event) => {
+      event.preventDefault();
+      const sourceId = event.dataTransfer.getData("text/plain") || draggedGridPanel;
+      setDraggedGridPanel(null);
+      if (!sourceId || sourceId === targetId) return;
+      const targetIndex = gridPanelIds.indexOf(targetId);
+      if (targetIndex >= 0) moveGridPanel(sourceId, targetIndex);
+    },
+    [draggedGridPanel, gridPanelIds, moveGridPanel],
+  );
+  const gridClassFor = (id) => {
+    if (!workspaceGrid) return "";
+    const index = gridPanelIds.indexOf(id);
+    return index < 0 ? "" : `workspaceGridPane gridPane${index} gridCount${gridPanelIds.length}`;
+  };
   const appClassName = [
     "app",
     explorerOpen ? "" : "explorerClosed",
+    openFile ? "editorOpen" : "",
     openFile && terminalOpen ? "codeTerminalSplit" : "",
     workspaceGrid ? "workspaceGrid" : "",
     browserOpen ? "browserOpen" : "",
+    aiOpen ? "aiOpen" : "",
     terminalOpen ? "terminalOpen" : "",
+    widgetsVisible ? "" : "widgetsClosed",
+    terminalHeight != null && !workspaceGrid ? "terminalResized" : "",
+    browserHeight != null && !workspaceGrid ? "browserResized" : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <Box className={appClassName}>
+    <ThemeProvider theme={activeTheme}>
+    <Box
+      className={appClassName}
+      style={{
+        "--ember": settings.dominantColor,
+        "--ember-deep": darken(settings.dominantColor, 0.16),
+        "--ember-rgb": hexToRgb(settings.dominantColor),
+        "--terminal-split-height": terminalHeight == null ? undefined : `${terminalHeight}px`,
+        "--browser-solo-height": browserHeight == null ? undefined : `${browserHeight}px`,
+      }}
+    >
       <Box className="videoLayer">
         {activeVisual.url ? (
           <Box component="img" className="videoStill" src={activeVisual.url} alt="" />
@@ -141,17 +257,27 @@ function Firekeep() {
         }}
       />
       <Box className={videoCurtainVisible ? "videoCurtain isVisible" : "videoCurtain"} />
-      <WindowChrome />
+      <WindowChrome version={packageInfo.version} />
       <WorkspaceDock
         explorerOpen={explorerOpen}
         terminalOpen={terminalOpen}
         browserOpen={browserOpen}
+        aiOpen={aiOpen}
         gridOpen={workspaceGrid}
         onToggleExplorer={toggleExplorer}
         onToggleTerminal={toggleTerminal}
         onToggleBrowser={toggleBrowser}
+        onToggleAi={toggleAi}
         onToggleGrid={() => setWorkspaceGrid((current) => !current)}
         onToggleFullscreen={() => globalThis.window?.firekeepWindow?.toggleFullscreen?.()}
+        pomodoroOpen={settings.pomodoroOpen}
+        clockOpen={settings.clockOpen}
+        musicOpen={settings.musicOpen}
+        visualOpen={settings.visualOpen}
+        onTogglePomodoro={() => updateSettings({ pomodoroOpen: !settings.pomodoroOpen })}
+        onToggleClock={() => updateSettings({ clockOpen: !settings.clockOpen })}
+        onToggleMusic={() => updateSettings({ musicOpen: !settings.musicOpen })}
+        onToggleVisual={() => updateSettings({ visualOpen: !settings.visualOpen })}
       />
 
       {explorerMounted ? (
@@ -166,76 +292,143 @@ function Firekeep() {
       ) : null}
 
       <Stack className="rightWidgets" sx={{ gap: 1 }}>
-        <PomodoroWidget />
-        <DateTimeWidget />
-        <MusicDock
-          musicMode={settings.musicMode}
-          youtubeLinks={settings.youtubeLinks}
-          activeYoutubeUrl={settings.activeYoutubeUrl}
-          spotifyClientId={settings.spotifyClientId}
-          spotifyTrackUri={settings.spotifyTrackUri}
-          onUpdateSettings={updateSettings}
-        />
-        <VisualDock
-          backgrounds={settings.backgrounds}
-          visualUrl={settings.visualUrl}
-          visualName={settings.visualName}
-          visualBrightness={settings.visualBrightness}
-          sessionVisual={sessionVisual}
-          onSessionVisualChange={setSessionVisual}
-          onUpdateSettings={updateSettings}
-        />
+        {settings.pomodoroOpen ? <PomodoroWidget /> : null}
+        {settings.clockOpen ? <DateTimeWidget /> : null}
+        {settings.musicOpen ? (
+          <MusicDock
+            musicMode={settings.musicMode}
+            youtubeLinks={settings.youtubeLinks}
+            activeYoutubeUrl={settings.activeYoutubeUrl}
+            spotifyClientId={settings.spotifyClientId}
+            spotifyTrackUri={settings.spotifyTrackUri}
+            onUpdateSettings={updateSettings}
+          />
+        ) : null}
+        {settings.visualOpen ? (
+          <VisualDock
+            backgrounds={settings.backgrounds}
+            visualUrl={settings.visualUrl}
+            visualName={settings.visualName}
+            visualBrightness={settings.visualBrightness}
+            dominantColor={settings.dominantColor}
+            sessionVisual={sessionVisual}
+            onSessionVisualChange={setSessionVisual}
+            onUpdateSettings={updateSettings}
+          />
+        ) : null}
       </Stack>
 
       {terminalMounted ? (
         <Suspense fallback={null}>
-          <LazyTerminalWorkspace open={terminalOpen} onToggleOpen={toggleTerminal} />
+          <LazyTerminalWorkspace
+            open={terminalOpen}
+            onToggleOpen={toggleTerminal}
+            gridClassName={gridClassFor("terminal")}
+            gridDraggable={workspaceGrid}
+            onGridDragStart={(event) => startGridDrag("terminal", event)}
+            onGridDragOver={allowGridDrop}
+            onGridDrop={(event) => dropGridPanel("terminal", event)}
+            resizable={!workspaceGrid && terminalOpen && !browserOpen && !aiOpen}
+            onResizeStart={(event) => startVerticalResize("terminal", event)}
+          />
         </Suspense>
       ) : null}
       {browserMounted ? (
         <Suspense fallback={null}>
-          <LazySearchBrowser open={browserOpen} onOpenChange={setBrowserOpen} />
+          <LazySearchBrowser
+            open={browserOpen}
+            onOpenChange={setBrowserOpen}
+            onClose={closeBrowser}
+            gridClassName={gridClassFor("browser")}
+            gridDraggable={workspaceGrid}
+            onGridDragStart={(event) => startGridDrag("browser", event)}
+            onGridDragOver={allowGridDrop}
+            onGridDrop={(event) => dropGridPanel("browser", event)}
+            resizable={!workspaceGrid && browserOpen && !terminalOpen}
+            onResizeStart={(event) => startVerticalResize("browser", event)}
+          />
+        </Suspense>
+      ) : null}
+      {aiOpen ? (
+        <Suspense fallback={null}>
+          <LazyOpenCodeChat
+            open={aiOpen}
+            onClose={() => setAiOpen(false)}
+            gridClassName={gridClassFor("ai")}
+            gridDraggable={workspaceGrid}
+            onGridDragStart={(event) => startGridDrag("ai", event)}
+            onGridDragOver={allowGridDrop}
+            onGridDrop={(event) => dropGridPanel("ai", event)}
+          />
         </Suspense>
       ) : null}
       {openFile ? (
-        <EditorErrorBoundary key={openFile.path} onClose={closeEditor}>
+        <EditorErrorBoundary key={openFile.path} onClose={closeEditor} gridClassName={gridClassFor("editor")}>
           <Suspense fallback={null}>
-            <LazyCodeEditor file={openFile} onClose={closeEditor} />
+            <LazyCodeEditor
+              file={openFile}
+              onClose={closeEditor}
+              gridClassName={gridClassFor("editor")}
+              gridDraggable={workspaceGrid}
+              onGridDragStart={(event) => startGridDrag("editor", event)}
+              onGridDragOver={allowGridDrop}
+              onGridDrop={(event) => dropGridPanel("editor", event)}
+            />
           </Suspense>
         </EditorErrorBoundary>
       ) : null}
-      <Box className="appVersionBadge">v{packageInfo.version}</Box>
     </Box>
+    </ThemeProvider>
   );
+}
+
+function hexToRgb(hex) {
+  return hex.slice(1).match(/.{2}/g).map((value) => parseInt(value, 16)).join(", ");
+}
+
+function darken(hex, amount) {
+  return `#${hex
+    .slice(1)
+    .match(/.{2}/g)
+    .map((value) => Math.round(parseInt(value, 16) * (1 - amount)).toString(16).padStart(2, "0"))
+    .join("")}`;
 }
 
 function WorkspaceDock({
   explorerOpen,
   terminalOpen,
   browserOpen,
+  aiOpen,
   gridOpen,
   onToggleExplorer,
   onToggleTerminal,
   onToggleBrowser,
+  onToggleAi,
   onToggleGrid,
   onToggleFullscreen,
+  pomodoroOpen,
+  clockOpen,
+  musicOpen,
+  visualOpen,
+  onTogglePomodoro,
+  onToggleClock,
+  onToggleMusic,
+  onToggleVisual,
 }) {
   return (
     <Box className="workspaceDock" aria-label="Ferramentas do workspace">
       <WorkspaceDockButton
-        active={explorerOpen}
         icon="folder"
         label={explorerOpen ? "Fechar explorador" : "Abrir explorador"}
         onClick={onToggleExplorer}
       />
+      <WorkspaceDockButton icon="chat" label={aiOpen ? "Fechar AI" : "Abrir AI"} onClick={onToggleAi} />
       <WorkspaceDockButton
-        active={browserOpen}
         icon="search"
         label={browserOpen ? "Fechar navegador" : "Abrir navegador"}
         onClick={onToggleBrowser}
       />
       <WorkspaceDockButton
-        active={terminalOpen}
         icon="terminal"
         label={terminalOpen ? "Fechar terminal" : "Abrir terminal"}
         onClick={onToggleTerminal}
@@ -247,12 +440,33 @@ function WorkspaceDock({
         label={gridOpen ? "Sair do grid" : "Organizar em grid"}
         onClick={onToggleGrid}
       />
-      <WorkspaceDockButton active={false} icon="fullscreen" label="Tela cheia" onClick={onToggleFullscreen} />
+      <WorkspaceDockButton icon="fullscreen" label="Tela cheia" onClick={onToggleFullscreen} />
+      <span className="workspaceDockDivider" />
+      <WorkspaceDockButton
+        icon="timer"
+        label={pomodoroOpen ? "Ocultar pomodoro" : "Mostrar pomodoro"}
+        onClick={onTogglePomodoro}
+      />
+      <WorkspaceDockButton
+        icon="calendar"
+        label={clockOpen ? "Ocultar relógio" : "Mostrar relógio"}
+        onClick={onToggleClock}
+      />
+      <WorkspaceDockButton
+        icon="music"
+        label={musicOpen ? "Ocultar música" : "Mostrar música"}
+        onClick={onToggleMusic}
+      />
+      <WorkspaceDockButton
+        icon="image"
+        label={visualOpen ? "Ocultar configurações do fundo" : "Mostrar configurações do fundo"}
+        onClick={onToggleVisual}
+      />
     </Box>
   );
 }
 
-function WorkspaceDockButton({ active, icon, label, onClick }) {
+function WorkspaceDockButton({ active = false, icon, label, onClick }) {
   return (
     <Tooltip title={label}>
       <IconButton

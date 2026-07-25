@@ -4,10 +4,13 @@ const DISPLAY = '"Fraunces", Georgia, "Times New Roman", serif';
 const MONO = '"JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, ui-monospace, monospace';
 const BODY = '"Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
 
-export const theme = createTheme({
+export function createFirekeepTheme(dominantColor = "#ff8c42") {
+  const primary = normalizeColor(dominantColor);
+
+  return createTheme({
   palette: {
     mode: "dark",
-    primary: { main: "#ff8c42", dark: "#e5642b", contrastText: "#0a0806" },
+    primary: { main: primary, dark: shade(primary, -0.16), contrastText: "#0a0806" },
     secondary: { main: "#86c7c0" },
     background: {
       default: "#07080c",
@@ -69,4 +72,18 @@ export const theme = createTheme({
       },
     },
   },
-});
+  });
+}
+
+export const theme = createFirekeepTheme();
+
+function normalizeColor(value) {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : "#ff8c42";
+}
+
+function shade(hex, amount) {
+  const channels = hex.match(/[0-9a-f]{2}/gi).map((channel) => parseInt(channel, 16));
+  return `#${channels
+    .map((channel) => Math.round(Math.max(0, Math.min(255, channel + 255 * amount))).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
