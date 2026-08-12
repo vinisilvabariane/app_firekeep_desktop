@@ -40,6 +40,26 @@ Esse comando abre uma janela Electron e reaproveita o mesmo React/Vite e o mesmo
 npm run electron:start
 ```
 
+## Publicar atualizacoes
+
+As versoes instaladas verificam atualizacoes no GitHub Releases do Firekeep ao
+iniciar. Quando uma versao nova estiver pronta, ela e baixada em segundo plano e
+o app pede apenas o reinicio para concluir a instalacao.
+
+Para publicar uma nova versao, altere `version` no `package.json`, crie uma
+variavel de ambiente `GH_TOKEN` com permissao para publicar releases no
+repositorio e execute:
+
+```powershell
+$env:GH_TOKEN="seu-token-do-github"
+npm run desktop:publish
+```
+
+O comando envia para a release o instalador e o arquivo `latest.yml`, que e o
+manifesto usado pelos apps instalados para encontrar a atualizacao. Para o
+lancamento publico, assine o executavel Windows com um certificado de code
+signing para evitar alertas do SmartScreen.
+
 ## Arquitetura
 
 ```text

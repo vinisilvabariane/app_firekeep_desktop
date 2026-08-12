@@ -1,4 +1,5 @@
 import { app, BrowserWindow, clipboard, ipcMain, nativeImage, nativeTheme, session, shell } from "electron";
+import { autoUpdater } from "electron-updater";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
@@ -16,6 +17,7 @@ let firekeepServer;
 let mainWindow;
 let mainUrl;
 let recoveryPending = false;
+let autoUpdateConfigured = false;
 
 // Monaco, xterm, GIFs e superficies translucidas dependem da composicao da GPU.
 // O fallback por software continua disponivel para drivers problematicos.
@@ -118,6 +120,7 @@ async function createWindow() {
   });
   mainWindow.webContents.on("did-finish-load", () => {
     recoveryPending = false;
+    configureAutoUpdates();
   });
 
   await mainWindow.loadURL(mainUrl);
@@ -125,6 +128,22 @@ async function createWindow() {
   if (isDev && process.env.FIREKEEP_DEVTOOLS === "1") {
     mainWindow.webContents.openDevTools({ mode: "detach" });
   }
+}
+
+function configureAutoUpdates() {
+  if (isDev || autoUpdateConfigured) return;
+  autoUpdateConfigured = true;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("update-downloaded", (release) => {
+    mainWindow?.webContents.send("app:update-ready", { version: release.version });
+  });
+  autoUpdater.on("error", (error) => {
+    console.warn("[firekeep] atualizacao automatica:", error.message);
+  });
+  autoUpdater.checkForUpdates().catch((error) => {
+    console.warn("[firekeep] nao foi possivel procurar atualizacoes:", error.message);
+  });
 }
 
 async function configureBrowserSession() {
@@ -261,6 +280,10 @@ ipcMain.handle("window:close", (event) => {
 ipcMain.handle("clipboard:write-text", (_event, value) => {
   if (typeof value !== "string") throw new Error("Texto invalido para a area de transferencia.");
   clipboard.writeText(value);
+});
+
+ipcMain.handle("app:install-update", () => {
+  autoUpdater.quitAndInstall();
 });
 
 app.whenReady().then(createWindow);

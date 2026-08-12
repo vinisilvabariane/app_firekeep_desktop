@@ -5,20 +5,51 @@ Use este arquivo como base para atualizar a pagina de lancamentos do site.
 
 Nota de versionamento: o Firekeep ainda nao chegou na `1.0.0` estavel. As entradas que antes apareciam como `1.0.0`, `1.0.1`, `1.1.0`, `1.2.0`, `1.3.0` e `1.4.0` foram reclassificadas como betas da futura `1.0.0`.
 
-## beta.1.10 - 2026-07-26
+## beta.1.10 - 2026-08-12
 
-Fonte: painel Git local adicionado ao workspace.
+Fonte: consolidacao do workspace desde a `beta.1.9`.
 
-- Nova tela Git no dock do Firekeep para acompanhar a branch, remoto, commits
-  recentes e arquivos alterados sem sair do aplicativo.
-- Mudancas locais e arquivos prontos para commit aparecem separados, com acoes
-  diretas de stage e unstage.
-- Diff textual do arquivo selecionado disponivel na propria tela para revisao
-  antes do commit.
-- Commit por mensagem, `pull --ff-only`, `push` e atualizacao manual do estado
-  do repositorio disponiveis como acoes explicitas.
-- Integracao usa exclusivamente o executavel Git local e o repositorio aberto;
-  nenhuma credencial e nenhum conteudo sao enviados pelo Firekeep.
+Resumo: painel Git local completo, simplificacao definitiva da musica para
+YouTube e refinamentos no instalador, terminal e navegador.
+
+### Implementacoes
+
+- Nova tela Git no dock do Firekeep para abrir repositórios locais, acompanhar
+  branch e remoto, listar alterações e revisar diffs sem sair do aplicativo.
+- Ações de `stage`, `unstage`, commit por mensagem, atualização, `pull --ff-only`
+  e `push` disponíveis diretamente no painel.
+- Seletor de pasta iniciado em `C:\`, lista de branches locais e troca de branch
+  com uma ação explícita.
+- Diff do arquivo selecionado passou a destacar blocos, linhas adicionadas e
+  removidas, tornando a revisão mais rápida.
+- Conflitos aparecem em uma seção própria, com ações por arquivo para manter a
+  versão local ou a versão recebida; a escolha resolve e prepara o arquivo.
+- Botão para desfazer alterações locais não preparadas, protegido por diálogo
+  de confirmação; itens em stage e arquivos não rastreados são preservados.
+- Detecção antecipada do Git instalado. Quando ele não existe no computador, o
+  painel apresenta orientação e atalho para o instalador oficial do Git para
+  Windows, além de uma ação para verificar novamente após a instalação.
+- O painel de música agora é exclusivamente YouTube, com controles e biblioteca
+  de links mais simples.
+- Instalador Windows recebeu artefato nomeado, interface em português, imagens
+  próprias e empacotamento ASAR com o módulo nativo do terminal preservado.
+
+### Remocoes e melhorias
+
+- Removidos o painel de IA/OpenCode local e as rotas, serviço e dependências
+  associados, substituídos pelo fluxo Git no workspace.
+- Removidas autenticação, player e configurações Spotify; não há mais fluxo de
+  conta ou credenciais de streaming no aplicativo.
+- Terminal ganhou zoom por `Ctrl` + roda do mouse, sem rolar o histórico junto.
+- Navegador abre a primeira pesquisa na aba atual e o atalho de favorito foi
+  simplificado: a remoção agora é um botão compacto e independente.
+- Removidos os redimensionadores verticais de navegador e terminal para manter
+  o layout do workspace mais estável.
+- A integração Git usa somente o executável e o repositório locais; nenhuma
+  credencial nem conteúdo do projeto são enviados pelo Firekeep.
+- Aplicativo instalado passou a consultar GitHub Releases por atualizações,
+  baixar uma versão nova em segundo plano e solicitar reinício somente quando
+  ela estiver pronta para instalar.
 
 ## beta.1.9 - 2026-07-26
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Publicar Firekeep"
+  short_description: "Valida, empacota e publica uma release"
+  default_prompt: "Use $firekeep-release para publicar a próxima versão do Firekeep."

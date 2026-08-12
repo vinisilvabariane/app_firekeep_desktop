@@ -1,9 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import CssBaseline from "@mui/material/CssBaseline";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
 import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 import { ThemeProvider } from "@mui/material/styles";
 import { EditorErrorBoundary } from "../features/editor/EditorErrorBoundary";
 import { VisualDock } from "../features/background/VisualDock";
@@ -54,10 +59,13 @@ function Firekeep() {
   const [explorerMounted, setExplorerMounted] = useState(false);
   const [terminalMounted, setTerminalMounted] = useState(false);
   const [browserMounted, setBrowserMounted] = useState(false);
+  const [downloadedUpdate, setDownloadedUpdate] = useState(null);
   const terminalOpen = startupSettled ? settings.terminalOpen : false;
   const explorerOpen = startupSettled ? settings.explorerOpen : false;
 
   useStartupSync(setStoredSettings);
+
+  useEffect(() => globalThis.window?.firekeepWindow?.onUpdateReady?.(setDownloadedUpdate), []);
 
   const updateSettings = useCallback(
     (patch) => {
@@ -318,6 +326,10 @@ function Firekeep() {
           </Suspense>
         </EditorErrorBoundary>
       ) : null}
+      <Dialog open={Boolean(downloadedUpdate)} onClose={() => setDownloadedUpdate(null)} PaperProps={{ className: "updateDialog" }}>
+        <DialogContent><Typography variant="subtitle1" fontWeight={900}>Atualização pronta</Typography><Typography variant="body2">A versão {downloadedUpdate?.version} já foi baixada. Reinicie o Firekeep para concluir a atualização.</Typography></DialogContent>
+        <DialogActions><Button onClick={() => setDownloadedUpdate(null)}>Mais tarde</Button><Button variant="contained" onClick={() => globalThis.window?.firekeepWindow?.installUpdate?.()}>Reiniciar agora</Button></DialogActions>
+      </Dialog>
     </Box>
     </ThemeProvider>
   );

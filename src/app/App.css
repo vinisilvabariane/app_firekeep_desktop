@@ -758,6 +758,7 @@
 }
 
 .gitUnavailable { display:grid; place-items:center; }.gitUnavailableCard { display:grid; justify-items:center; gap:12px; width:min(430px, calc(100% - 40px)); color:var(--text); text-align:center; }.gitUnavailableCard .MuiTypography-body2 { color:var(--muted); line-height:1.55; }.gitUnavailableMark { display:grid; width:48px; height:48px; place-items:center; border:1px solid rgba(132,167,255,.38); border-radius:12px; color:#d7e1ff; background:rgba(132,167,255,.12); }.gitUnavailableActions { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:4px; }
+.updateDialog { width:min(420px, calc(100vw - 32px)); color:var(--text); border:1px solid rgba(var(--ember-rgb),.42); background:linear-gradient(145deg,rgba(var(--ember-rgb),.13),transparent 55%),rgba(12,14,20,.98) !important; }.updateDialog .MuiDialogContent-root { display:grid; gap:8px; }.updateDialog .MuiTypography-body2 { color:var(--muted); line-height:1.5; }
 
 .gitHeader,
 .gitToolbar,

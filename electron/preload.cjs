@@ -6,6 +6,13 @@ contextBridge.exposeInMainWorld("firekeepWindow", {
   toggleFullscreen: () => ipcRenderer.invoke("window:toggle-fullscreen"),
   close: () => ipcRenderer.invoke("window:close"),
   copyToClipboard: (value) => ipcRenderer.invoke("clipboard:write-text", value),
+  installUpdate: () => ipcRenderer.invoke("app:install-update"),
+  onUpdateReady: (callback) => {
+    if (typeof callback !== "function") return () => {};
+    const listener = (_event, update) => callback(update);
+    ipcRenderer.on("app:update-ready", listener);
+    return () => ipcRenderer.removeListener("app:update-ready", listener);
+  },
   onBrowserOpenUrl: (callback) => {
     if (typeof callback !== "function") return () => {};
     const listener = (_event, url) => callback(url);

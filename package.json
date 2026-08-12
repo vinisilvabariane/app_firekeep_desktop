@@ -15,6 +15,7 @@
     "electron:start": "npm run build && electron .",
     "desktop:pack": "npm run build && electron-builder --dir",
     "desktop:dist": "npm run build && electron-builder --win nsis --x64",
+    "desktop:publish": "npm run build && electron-builder --win nsis --x64 --publish always",
     "build": "vite build",
     "test": "node --test test/*.test.js",
     "lint": "oxlint",
@@ -30,6 +31,13 @@
     "asar": true,
     "asarUnpack": [
       "node_modules/node-pty/**"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "vinisilvabariane",
+        "repo": "desktop_fk"
+      }
     ],
     "npmRebuild": false,
     "files": [
@@ -76,6 +84,7 @@
     "@mui/material": "^9.2.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "electron-updater": "^6.8.9",
     "express": "^5.2.1",
     "monaco-editor": "^0.52.2",
     "node-pty": "^1.1.0",
