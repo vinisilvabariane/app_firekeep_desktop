@@ -3,14 +3,17 @@
 Registro local das releases do Firekeep, consolidado a partir do historico de commits.
 Use este arquivo como base para atualizar a pagina de lancamentos do site.
 
-Nota de versionamento: o Firekeep ainda nao chegou na `1.0.0` estavel. As entradas que antes apareciam como `1.0.0`, `1.0.1`, `1.1.0`, `1.2.0`, `1.3.0` e `1.4.0` foram reclassificadas como betas da futura `1.0.0`.
+Nota de versionamento: `1.0.0` marca o primeiro lancamento estavel do
+Firekeep. Entradas historicas que antes apareciam como `1.0.0`, `1.0.1`,
+`1.1.0`, `1.2.0`, `1.3.0` e `1.4.0` foram reclassificadas como betas durante o
+desenvolvimento da versao estavel.
 
-## beta.1.10 - 2026-08-12
+## 1.0.0 - 2026-08-12
 
 Fonte: consolidacao do workspace desde a `beta.1.9`.
 
-Resumo: painel Git local completo, simplificacao definitiva da musica para
-YouTube e refinamentos no instalador, terminal e navegador.
+Resumo: primeiro lancamento estavel do Firekeep, com painel Git local,
+atualizacoes automaticas, musica por YouTube e refinamentos de desktop.
 
 ### Implementacoes
 
