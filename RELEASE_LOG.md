@@ -5,6 +5,45 @@ Use este arquivo como base para atualizar a pagina de lancamentos do site.
 
 Nota de versionamento: o Firekeep ainda nao chegou na `1.0.0` estavel. As entradas que antes apareciam como `1.0.0`, `1.0.1`, `1.1.0`, `1.2.0`, `1.3.0` e `1.4.0` foram reclassificadas como betas da futura `1.0.0`.
 
+## beta.1.10 - 2026-07-26
+
+Fonte: painel Git local adicionado ao workspace.
+
+- Nova tela Git no dock do Firekeep para acompanhar a branch, remoto, commits
+  recentes e arquivos alterados sem sair do aplicativo.
+- Mudancas locais e arquivos prontos para commit aparecem separados, com acoes
+  diretas de stage e unstage.
+- Diff textual do arquivo selecionado disponivel na propria tela para revisao
+  antes do commit.
+- Commit por mensagem, `pull --ff-only`, `push` e atualizacao manual do estado
+  do repositorio disponiveis como acoes explicitas.
+- Integracao usa exclusivamente o executavel Git local e o repositorio aberto;
+  nenhuma credencial e nenhum conteudo sao enviados pelo Firekeep.
+
+## beta.1.9 - 2026-07-26
+
+Fonte: consolidacao do workspace desde a `beta.1.8`.
+
+Resumo: instalador Windows redesenhado, distribuicao desktop otimizada e
+simplificacao do painel de musica.
+
+### Implementacoes
+
+- Instalador NSIS agora tem idioma em portugues, nome de artefato padronizado,
+  cabecalho e lateral visuais do Firekeep.
+- Painel de musica simplificado para YouTube, com controles de reproducao,
+  faixa, volume, repeticao e gerenciamento da biblioteca de links.
+- Pacote Electron passou a usar ASAR, mantendo apenas o modulo nativo do
+  terminal externo para reduzir o volume e o tempo de empacotamento.
+
+### Remocoes e melhorias
+
+- Removidos o player, autenticacao, configuracoes e dependencias da antiga
+  integracao de streaming; o Firekeep passa a manter apenas o fluxo de musica
+  por YouTube.
+- Documentacao atualizada para refletir o fluxo de musica atual e a
+  distribuicao desktop.
+
 ## beta.1.8 2026-07-23
 
 - Cada aba do navegador mantem seu proprio `webview` vivo: trocar de aba apenas
@@ -94,7 +133,7 @@ Resumo: beta atual com ajustes no navegador interno e organizacao do historico d
 
 Fonte: commit `ccbd14c` (`feat varias coias`).
 
-Resumo: beta de consolidacao de interface, musica, Spotify, Worker do backend e estabilidade grafica.
+Resumo: beta de consolidacao de interface, musica, Worker do backend e estabilidade grafica.
 
 ### Implementacoes
 
@@ -102,10 +141,7 @@ Resumo: beta de consolidacao de interface, musica, Spotify, Worker do backend e 
 - Versao atual exibida no canto inferior direito do app.
 - Backend local movido para `electron/server-worker.js`, executando em um Worker Node separado do processo principal do Electron.
 - Processo principal do Electron passou a focar em janela, lifecycle, recuperacao e ponte com o Worker.
-- Modo de musica alterna entre `YouTube` e `Spotify`.
 - Modo YouTube usa player oculto oficial para audio em segundo plano.
-- Modo Spotify adicionado com OAuth PKCE e Web Playback SDK.
-- Campos para configurar Spotify Client ID e faixa Spotify por URI/link.
 - Uploads novos de fundo preservam melhor o nome escolhido/original do arquivo.
 
 ### Correcoes e melhorias

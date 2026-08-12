@@ -16,7 +16,6 @@ let firekeepServer;
 let mainWindow;
 let mainUrl;
 let recoveryPending = false;
-let spotifyAuthWindow;
 
 // Monaco, xterm, GIFs e superficies translucidas dependem da composicao da GPU.
 // O fallback por software continua disponivel para drivers problematicos.
@@ -263,92 +262,6 @@ ipcMain.handle("clipboard:write-text", (_event, value) => {
   if (typeof value !== "string") throw new Error("Texto invalido para a area de transferencia.");
   clipboard.writeText(value);
 });
-
-ipcMain.handle("spotify:login", async (event, authorizationUrl, redirectUri) => {
-  const owner = BrowserWindow.fromWebContents(event.sender);
-  if (!owner || !isSpotifyAuthorizationUrl(authorizationUrl) || !isLoopbackUrl(redirectUri)) {
-    throw new Error("Solicitacao de login do Spotify invalida.");
-  }
-
-  spotifyAuthWindow?.close();
-  spotifyAuthWindow = new BrowserWindow({
-    parent: owner,
-    modal: true,
-    width: 520,
-    height: 720,
-    minWidth: 420,
-    minHeight: 560,
-    title: "Entrar com Spotify",
-    autoHideMenuBar: true,
-    backgroundColor: "#07090d",
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: true,
-    },
-  });
-
-  return new Promise((resolve, reject) => {
-    const authWindow = spotifyAuthWindow;
-    let settled = false;
-
-    const finish = (value, error) => {
-      if (settled) return;
-      settled = true;
-      if (!authWindow.isDestroyed()) authWindow.close();
-      if (spotifyAuthWindow === authWindow) spotifyAuthWindow = null;
-      if (error) reject(error);
-      else resolve(value);
-    };
-
-    const captureCallback = (url) => {
-      if (!isSpotifyCallbackUrl(url, redirectUri)) return false;
-      finish(url);
-      return true;
-    };
-
-    authWindow.webContents.on("will-redirect", (redirectEvent, url) => {
-      if (!isSpotifyCallbackUrl(url, redirectUri)) return;
-      redirectEvent.preventDefault();
-      captureCallback(url);
-    });
-    authWindow.webContents.on("did-navigate", (_navigationEvent, url) => {
-      captureCallback(url);
-    });
-    authWindow.on("closed", () => {
-      if (!settled) finish(null, new Error("Login do Spotify cancelado."));
-    });
-    authWindow.loadURL(authorizationUrl).catch((error) => finish(null, error));
-  });
-});
-
-function isSpotifyAuthorizationUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" && url.hostname === "accounts.spotify.com" && url.pathname === "/authorize";
-  } catch {
-    return false;
-  }
-}
-
-function isLoopbackUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" && ["127.0.0.1", "[::1]"].includes(url.hostname);
-  } catch {
-    return false;
-  }
-}
-
-function isSpotifyCallbackUrl(value, redirectUri) {
-  try {
-    const callback = new URL(value);
-    const redirect = new URL(redirectUri);
-    return callback.origin === redirect.origin && callback.pathname === redirect.pathname;
-  } catch {
-    return false;
-  }
-}
 
 app.whenReady().then(createWindow);
 

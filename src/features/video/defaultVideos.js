@@ -2,8 +2,6 @@ export const DEFAULT_SETTINGS = {
   musicMode: "youtube",
   youtubeLinks: [],
   activeYoutubeUrl: "",
-  spotifyClientId: "",
-  spotifyTrackUri: "",
   backgrounds: [],
   playAudio: true,
   dimVisual: false,
@@ -23,7 +21,6 @@ export const DEFAULT_SETTINGS = {
 
 export function normalizeSettings(value) {
   const settings = { ...DEFAULT_SETTINGS, ...(value ?? {}) };
-  const musicMode = settings.musicMode === "spotify" ? "spotify" : "youtube";
   const youtubeLinks = normalizeYoutubeLinks(settings.youtubeLinks ?? settings.videoLinks ?? []);
   const activeYoutubeUrl = youtubeLinks.some((link) => link.url === settings.activeYoutubeUrl)
     ? settings.activeYoutubeUrl
@@ -41,11 +38,9 @@ export function normalizeSettings(value) {
 
   return {
     ...settings,
-    musicMode,
+    musicMode: "youtube",
     youtubeLinks,
     activeYoutubeUrl,
-    spotifyClientId: typeof settings.spotifyClientId === "string" ? settings.spotifyClientId : "",
-    spotifyTrackUri: normalizeSpotifyUri(settings.spotifyTrackUri),
     activeAudioUrl: "",
     audioTracks: [],
     activeVideoUrl: "",
@@ -84,15 +79,3 @@ function normalizeYoutubeLinks(value) {
   return Array.from(byUrl.values());
 }
 
-function normalizeSpotifyUri(value) {
-  if (typeof value !== "string") return "";
-  const text = value.trim();
-  if (/^spotify:(track|playlist|album):[A-Za-z0-9]+$/.test(text)) return text;
-  try {
-    const url = new URL(text);
-    const match = url.pathname.match(/\/(track|playlist|album)\/([A-Za-z0-9]+)/);
-    return match ? `spotify:${match[1]}:${match[2]}` : "";
-  } catch {
-    return "";
-  }
-}

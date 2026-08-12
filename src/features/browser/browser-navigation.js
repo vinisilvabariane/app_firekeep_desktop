@@ -21,7 +21,6 @@ function getSearchShortcutUrl(value) {
   const shortcuts = {
     google: "https://www.google.com",
     github: "https://github.com",
-    spotify: "https://open.spotify.com",
   };
   return shortcuts[key] ?? "";
 }

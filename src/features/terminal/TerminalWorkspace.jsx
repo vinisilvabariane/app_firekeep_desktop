@@ -22,8 +22,6 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({
   onGridDragStart,
   onGridDragOver,
   onGridDrop,
-  resizable = false,
-  onResizeStart,
 }) {
   const [projectPath] = useState(DEFAULT_TERMINAL_CWD);
   const [fontSize, setFontSize] = useState(13);
@@ -123,15 +121,6 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({
         onDrop={onGridDrop}
       >
         {gridDraggable ? <GridDragHandle onDragStart={onGridDragStart} /> : null}
-        {resizable ? (
-          <Box
-            className="terminalResizeHandle"
-            onPointerDown={onResizeStart}
-            role="separator"
-            aria-label="Redimensionar terminal verticalmente"
-            aria-orientation="horizontal"
-          />
-        ) : null}
         <Stack className="terminalTabBar" direction="row" sx={{ alignItems: "center", gap: 0.6 }}>
         <Stack className="terminalTabs" direction="row" sx={{ gap: 0.6 }}>
           {terminals.map((terminal, index) => (
@@ -200,6 +189,7 @@ export const TerminalWorkspace = memo(function TerminalWorkspace({
             terminalId={terminal.id}
             fontSize={fontSize}
             onStatus={reportStatus}
+            onZoom={changeZoom}
           />
         ))}
         </Box>
@@ -217,7 +207,7 @@ function GridDragHandle({ onDragStart }) {
   );
 }
 
-function TerminalPane({ active, cwd, terminalId, fontSize, onStatus }) {
+function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
   const terminalHostRef = useRef(null);
   const terminalRef = useRef(null);
   const fitAddonRef = useRef(null);
@@ -226,11 +216,30 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus }) {
   const currentCwdRef = useRef(cwd);
   const visibleRef = useRef(active);
   const pendingOutputRef = useRef("");
+  const zoomWheelDeltaRef = useRef(0);
   const [status, setStatus] = useState("conectando");
 
   useEffect(() => {
     onStatus?.(terminalId, status);
   }, [onStatus, status, terminalId]);
+
+  // Usa captura nativa (não o onWheel do React) para parar o evento antes que
+  // o xterm processe a roda e role o histórico junto com o zoom.
+  useEffect(() => {
+    const host = terminalHostRef.current;
+    if (!host) return undefined;
+    const handleWheel = (event) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      zoomWheelDeltaRef.current += event.deltaY;
+      if (Math.abs(zoomWheelDeltaRef.current) < 40) return;
+      onZoom(zoomWheelDeltaRef.current < 0 ? 1 : -1);
+      zoomWheelDeltaRef.current = 0;
+    };
+    host.addEventListener("wheel", handleWheel, { capture: true, passive: false });
+    return () => host.removeEventListener("wheel", handleWheel, { capture: true });
+  }, [onZoom]);
 
   useEffect(() => {
     if (!terminalHostRef.current || !cwd) return undefined;

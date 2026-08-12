@@ -13,7 +13,7 @@ const HOME_TAB = { id: "home", title: "Hub", url: "" };
 const EMPTY_BROWSER_STATE = { tabs: [HOME_TAB], activeTabId: HOME_TAB.id, favorites: [] };
 const MAX_BROWSER_TABS = 8;
 
-export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange, onClose, resizable = false, onResizeStart, gridClassName = "", gridDraggable = false, onGridDragStart, onGridDragOver, onGridDrop }) {
+export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange, onClose, gridClassName = "", gridDraggable = false, onGridDragStart, onGridDragOver, onGridDrop }) {
   const webviewRef = useRef(null);
   const bodyRef = useRef(null);
   const [address, setAddress] = useState("");
@@ -146,7 +146,7 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange, o
 
     onOpenChange(true);
 
-    if (newTab || !activeTab.url) {
+    if (newTab) {
       const tab = createTab({ title: getHost(nextUrl) || "Pesquisa", url: nextUrl });
       setTabs((current) => appendTab(current, tab));
       setActiveTabId(tab.id);
@@ -232,15 +232,6 @@ export const SearchBrowser = memo(function SearchBrowser({ open, onOpenChange, o
   return (
     <Paper elevation={14} className={open ? `miniBrowser ${gridClassName}` : `miniBrowser isMinimized ${gridClassName}`} onDragOver={onGridDragOver} onDrop={onGridDrop}>
           {gridDraggable ? <GridDragHandle onDragStart={onGridDragStart} /> : null}
-          {resizable ? (
-            <Box
-              className="browserResizeHandle"
-              onPointerDown={onResizeStart}
-              role="separator"
-              aria-label="Redimensionar navegador verticalmente"
-              aria-orientation="horizontal"
-            />
-          ) : null}
           <Box className="miniBrowserTabs" role="tablist" aria-label="Abas do navegador">
             {safeTabs.map((tab) => (
               <Box
@@ -752,6 +743,7 @@ function BrowserHub({ favorites, onSearch, onOpenFavorite, onRemoveFavorite }) {
               <Box key={favorite.id} className="browserFavoriteChip">
                 <button
                   type="button"
+                  className="browserFavoriteOpen"
                   onClick={() => onOpenFavorite(favorite)}
                   onAuxClick={() => onOpenFavorite(favorite, true)}
                   title={favorite.url}
@@ -759,11 +751,15 @@ function BrowserHub({ favorites, onSearch, onOpenFavorite, onRemoveFavorite }) {
                   <span>{favorite.label.slice(0, 1).toUpperCase()}</span>
                   <strong>{favorite.label}</strong>
                 </button>
-                <Tooltip title="Remover favorito">
-                  <IconButton size="small" onClick={() => onRemoveFavorite(favorite.id)} aria-label="Remover favorito">
-                    <Icon name="close" fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                <button
+                  type="button"
+                  className="browserFavoriteRemove"
+                  title="Remover favorito"
+                  aria-label={`Remover ${favorite.label} dos favoritos`}
+                  onClick={(event) => { event.stopPropagation(); onRemoveFavorite(favorite.id); }}
+                >
+                  <Icon name="close" fontSize="inherit" />
+                </button>
               </Box>
             ))}
           </Box>

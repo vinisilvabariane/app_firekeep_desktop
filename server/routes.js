@@ -30,7 +30,7 @@ import { toMessage } from "./utils.js";
 // bloquear o event loop com JSON.parse de payloads gigantes.
 const rawImageBody = express.raw({ type: "image/*", limit: "64mb" });
 
-export function registerApiRoutes(app, { root, storageRoot, openCode }) {
+export function registerApiRoutes(app, { root, storageRoot, git }) {
   const catalogOptions = { mirrorSeed: path.resolve(root) === path.resolve(storageRoot) };
   const respond = (handler, fallbackMessage) => async (request, response) => {
     try {
@@ -48,38 +48,18 @@ export function registerApiRoutes(app, { root, storageRoot, openCode }) {
     response.json({ name: path.basename(root), path: root });
   });
 
-  app.get(
-    "/api/opencode/status",
-    respond(async () => openCode.status(), "Falha ao verificar o OpenCode."),
-  );
-
-  app.post(
-    "/api/opencode/start",
-    respond(async () => openCode.start(), "Falha ao iniciar o OpenCode."),
-  );
-
-  app.post(
-    "/api/opencode/session",
-    respond(async () => ({ session: await openCode.createSession() }), "Falha ao criar sessao AI."),
-  );
-
-  app.get(
-    "/api/opencode/session/:id/messages",
-    respond(async (request) => ({ messages: await openCode.messages(request.params.id) }), "Falha ao ler mensagens AI."),
-  );
-
-  app.post(
-    "/api/opencode/session/:id/message",
-    respond(
-      async (request) => ({ message: await openCode.sendMessage(request.params.id, String(request.body?.message ?? "")) }),
-      "Falha ao enviar mensagem ao OpenCode.",
-    ),
-  );
-
-  app.post(
-    "/api/opencode/session/:id/abort",
-    respond(async (request) => openCode.abort(request.params.id), "Falha ao interromper a resposta AI."),
-  );
+  app.get("/api/git/availability", respond(() => git.availability(), "Falha ao verificar o Git."));
+  app.get("/api/git/status", respond((request) => git.status(request.query.root), "Falha ao ler o estado do Git."));
+  app.get("/api/git/diff", respond((request) => git.diff(request.query.root, request.query.path, request.query.staged === "true"), "Falha ao ler o diff."));
+  app.post("/api/git/stage", respond((request) => git.stage(request.body?.root, request.body?.path), "Falha ao preparar o arquivo."));
+  app.post("/api/git/unstage", respond((request) => git.unstage(request.body?.root, request.body?.path), "Falha ao retirar o arquivo do commit."));
+  app.post("/api/git/discard-working-changes", respond((request) => git.discardWorkingChanges(request.body?.root), "Falha ao desfazer as alterações locais."));
+  app.post("/api/git/resolve-conflict", respond((request) => git.resolveConflict(request.body?.root, request.body?.path, request.body?.strategy), "Falha ao resolver o conflito."));
+  app.post("/api/git/commit", respond((request) => git.commit(request.body?.root, request.body?.message), "Falha ao criar o commit."));
+  app.post("/api/git/pull", respond((request) => git.pull(request.body?.root), "Falha ao atualizar a branch."));
+  app.post("/api/git/push", respond((request) => git.push(request.body?.root), "Falha ao enviar a branch."));
+  app.get("/api/git/overview", respond((request) => git.overview(request.query.root), "Falha ao ler branches e histórico."));
+  app.post("/api/git/checkout", respond((request) => git.checkout(request.body?.root, request.body?.branch, request.body?.create), "Falha ao trocar a branch."));
 
   app.get(
     "/api/projects",

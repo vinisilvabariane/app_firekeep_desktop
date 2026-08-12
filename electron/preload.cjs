@@ -6,7 +6,6 @@ contextBridge.exposeInMainWorld("firekeepWindow", {
   toggleFullscreen: () => ipcRenderer.invoke("window:toggle-fullscreen"),
   close: () => ipcRenderer.invoke("window:close"),
   copyToClipboard: (value) => ipcRenderer.invoke("clipboard:write-text", value),
-  spotifyLogin: (authorizationUrl, redirectUri) => ipcRenderer.invoke("spotify:login", authorizationUrl, redirectUri),
   onBrowserOpenUrl: (callback) => {
     if (typeof callback !== "function") return () => {};
     const listener = (_event, url) => callback(url);

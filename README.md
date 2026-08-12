@@ -1,6 +1,6 @@
 # Firekeep
 
-Monolito Node + React/Electron para vibe code com Pomodoro automatico, musica por YouTube/Spotify, fundo visual local e terminais interativos.
+Monolito Node + React/Electron para vibe code com Pomodoro automatico, musica por YouTube, fundo visual local e terminais interativos.
 
 Status: beta. As versoes atuais seguem `1.0.0-beta.x`; a versao `1.0.0` fica reservada para o lancamento estavel.
 
@@ -73,7 +73,7 @@ src/
     explorer/              # explorador de arquivos em arvore
     pomodoro/              # usePomodoro (ciclo automatico) + widget
     terminal/              # workspace com multiplos terminais
-    video/                 # MusicDock (YouTube/Spotify) + painel
+    video/                 # MusicDock (YouTube) + painel
   shared/
     api.js                 # cliente HTTP unico das rotas /api/*
     Icon.jsx               # icones SVG locais
@@ -108,21 +108,6 @@ O servidor local do app roda em um Worker separado do processo principal do
 Electron. Rotas, arquivos locais, logs e terminais ficam fora do processo que
 controla a janela, reduzindo travamentos quando alguma feature faz I/O ou usa
 `node-pty`.
-
-Para usar Spotify, crie um app no Spotify Developer Dashboard, cadastre o
-Redirect URI correspondente e configure o Client ID uma vez antes da build:
-
-```powershell
-$env:VITE_SPOTIFY_CLIENT_ID="seu-client-id"
-npm run electron:start
-```
-
-No uso normal, basta clicar em **Entrar com Spotify**; a autenticação acontece
-na página oficial do Spotify e a senha nunca passa pelo Firekeep. O Client ID
-identifica o aplicativo, nao a conta, e pode ser distribuido na build. O
-playback usa o Spotify Web Playback SDK e exige conta Spotify Premium. Para a
-build desktop padrao, cadastre `http://127.0.0.1:41873/` como Redirect URI. Se
-trocar `PORT`, cadastre a URL com a nova porta e gere a build novamente.
 
 ## Arquivos locais
 

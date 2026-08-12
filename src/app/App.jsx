@@ -23,7 +23,7 @@ const LazyCodeEditor = lazy(() => import("../features/editor/CodeEditor").then((
 const LazyFileExplorer = lazy(() => import("../features/explorer/FileExplorer").then(({ FileExplorer }) => ({ default: FileExplorer })));
 const LazySearchBrowser = lazy(() => import("../features/browser/SearchBrowser").then(({ SearchBrowser }) => ({ default: SearchBrowser })));
 const LazyTerminalWorkspace = lazy(() => import("../features/terminal/TerminalWorkspace").then(({ TerminalWorkspace }) => ({ default: TerminalWorkspace })));
-const LazyOpenCodeChat = lazy(() => import("../features/ai/OpenCodeChat").then(({ OpenCodeChat }) => ({ default: OpenCodeChat })));
+const LazyGitWorkspace = lazy(() => import("../features/git/GitWorkspace").then(({ GitWorkspace }) => ({ default: GitWorkspace })));
 
 export default function App() {
   return (
@@ -47,12 +47,10 @@ function Firekeep() {
   const [videoCurtainVisible, setVideoCurtainVisible] = useState(true);
   const [startupSettled, setStartupSettled] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
-  const [aiOpen, setAiOpen] = useState(false);
+  const [gitOpen, setGitOpen] = useState(false);
   const [workspaceGrid, setWorkspaceGrid] = useState(false);
   const [gridOrder, setGridOrder] = useState(() => (Array.isArray(storedSettings.gridOrder) ? storedSettings.gridOrder : []));
   const [draggedGridPanel, setDraggedGridPanel] = useState(null);
-  const [terminalHeight, setTerminalHeight] = useState(null);
-  const [browserHeight, setBrowserHeight] = useState(null);
   const [explorerMounted, setExplorerMounted] = useState(false);
   const [terminalMounted, setTerminalMounted] = useState(false);
   const [browserMounted, setBrowserMounted] = useState(false);
@@ -88,40 +86,6 @@ function Firekeep() {
     setBrowserOpen(false);
     setBrowserMounted(false);
   }, []);
-  const toggleAi = useCallback(() => {
-    setAiOpen((current) => !current);
-  }, []);
-  const startVerticalResize = useCallback(
-    (target, event) => {
-      if (event.button !== 0) return;
-      event.preventDefault();
-
-      const minHeight = 220;
-      const maxHeight = Math.max(
-        minHeight,
-        window.innerHeight - 46 - 14 - (target === "grid" ? minHeight + 14 : 0),
-      );
-      const currentHeight = target === "browser" ? browserHeight : terminalHeight;
-      const panelSelector = target === "browser" ? ".miniBrowser" : ".terminalWorkspace";
-      const measuredHeight = document.querySelector(panelSelector)?.getBoundingClientRect().height;
-      const initialHeight = currentHeight ?? measuredHeight ?? Math.min(maxHeight, Math.round(window.innerHeight * 0.34));
-      const startY = event.clientY;
-      const updateHeight = target === "browser" ? setBrowserHeight : setTerminalHeight;
-
-      const onPointerMove = (moveEvent) => {
-        const nextHeight = Math.max(minHeight, Math.min(maxHeight, initialHeight + startY - moveEvent.clientY));
-        updateHeight(Math.round(nextHeight));
-      };
-      const onPointerUp = () => {
-        window.removeEventListener("pointermove", onPointerMove);
-        window.removeEventListener("pointerup", onPointerUp);
-      };
-
-      window.addEventListener("pointermove", onPointerMove);
-      window.addEventListener("pointerup", onPointerUp, { once: true });
-    },
-    [browserHeight, terminalHeight],
-  );
   // Terminais e explorador sempre comecam fechados ao iniciar o app.
   useEffect(() => {
     setStoredSettings((current) => ({ ...normalizeSettings(current), terminalOpen: false, explorerOpen: false }));
@@ -156,9 +120,9 @@ function Firekeep() {
       openFile ? "editor" : null,
       browserOpen ? "browser" : null,
       terminalOpen ? "terminal" : null,
-      aiOpen ? "ai" : null,
+      gitOpen ? "git" : null,
     ].filter(Boolean),
-    [aiOpen, browserOpen, openFile, terminalOpen],
+    [browserOpen, gitOpen, openFile, terminalOpen],
   );
   const gridPanelIds = useMemo(
     () => [
@@ -214,11 +178,9 @@ function Firekeep() {
     openFile && terminalOpen ? "codeTerminalSplit" : "",
     workspaceGrid ? "workspaceGrid" : "",
     browserOpen ? "browserOpen" : "",
-    aiOpen ? "aiOpen" : "",
+    gitOpen ? "gitOpen" : "",
     terminalOpen ? "terminalOpen" : "",
     widgetsVisible ? "" : "widgetsClosed",
-    terminalHeight != null && !workspaceGrid ? "terminalResized" : "",
-    browserHeight != null && !workspaceGrid ? "browserResized" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -231,8 +193,6 @@ function Firekeep() {
         "--ember": settings.dominantColor,
         "--ember-deep": darken(settings.dominantColor, 0.16),
         "--ember-rgb": hexToRgb(settings.dominantColor),
-        "--terminal-split-height": terminalHeight == null ? undefined : `${terminalHeight}px`,
-        "--browser-solo-height": browserHeight == null ? undefined : `${browserHeight}px`,
       }}
     >
       <Box className="videoLayer">
@@ -262,12 +222,12 @@ function Firekeep() {
         explorerOpen={explorerOpen}
         terminalOpen={terminalOpen}
         browserOpen={browserOpen}
-        aiOpen={aiOpen}
+        gitOpen={gitOpen}
         gridOpen={workspaceGrid}
         onToggleExplorer={toggleExplorer}
         onToggleTerminal={toggleTerminal}
         onToggleBrowser={toggleBrowser}
-        onToggleAi={toggleAi}
+        onToggleGit={() => setGitOpen((current) => !current)}
         onToggleGrid={() => setWorkspaceGrid((current) => !current)}
         onToggleFullscreen={() => globalThis.window?.firekeepWindow?.toggleFullscreen?.()}
         pomodoroOpen={settings.pomodoroOpen}
@@ -296,11 +256,8 @@ function Firekeep() {
         {settings.clockOpen ? <DateTimeWidget /> : null}
         {settings.musicOpen ? (
           <MusicDock
-            musicMode={settings.musicMode}
             youtubeLinks={settings.youtubeLinks}
             activeYoutubeUrl={settings.activeYoutubeUrl}
-            spotifyClientId={settings.spotifyClientId}
-            spotifyTrackUri={settings.spotifyTrackUri}
             onUpdateSettings={updateSettings}
           />
         ) : null}
@@ -328,8 +285,6 @@ function Firekeep() {
             onGridDragStart={(event) => startGridDrag("terminal", event)}
             onGridDragOver={allowGridDrop}
             onGridDrop={(event) => dropGridPanel("terminal", event)}
-            resizable={!workspaceGrid && terminalOpen && !browserOpen && !aiOpen}
-            onResizeStart={(event) => startVerticalResize("terminal", event)}
           />
         </Suspense>
       ) : null}
@@ -344,24 +299,10 @@ function Firekeep() {
             onGridDragStart={(event) => startGridDrag("browser", event)}
             onGridDragOver={allowGridDrop}
             onGridDrop={(event) => dropGridPanel("browser", event)}
-            resizable={!workspaceGrid && browserOpen && !terminalOpen}
-            onResizeStart={(event) => startVerticalResize("browser", event)}
           />
         </Suspense>
       ) : null}
-      {aiOpen ? (
-        <Suspense fallback={null}>
-          <LazyOpenCodeChat
-            open={aiOpen}
-            onClose={() => setAiOpen(false)}
-            gridClassName={gridClassFor("ai")}
-            gridDraggable={workspaceGrid}
-            onGridDragStart={(event) => startGridDrag("ai", event)}
-            onGridDragOver={allowGridDrop}
-            onGridDrop={(event) => dropGridPanel("ai", event)}
-          />
-        </Suspense>
-      ) : null}
+      {gitOpen ? <Suspense fallback={null}><LazyGitWorkspace open={gitOpen} onClose={() => setGitOpen(false)} gridClassName={gridClassFor("git")} gridDraggable={workspaceGrid} onGridDragStart={(event) => startGridDrag("git", event)} onGridDragOver={allowGridDrop} onGridDrop={(event) => dropGridPanel("git", event)} /></Suspense> : null}
       {openFile ? (
         <EditorErrorBoundary key={openFile.path} onClose={closeEditor} gridClassName={gridClassFor("editor")}>
           <Suspense fallback={null}>
@@ -398,12 +339,12 @@ function WorkspaceDock({
   explorerOpen,
   terminalOpen,
   browserOpen,
-  aiOpen,
+  gitOpen,
   gridOpen,
   onToggleExplorer,
   onToggleTerminal,
   onToggleBrowser,
-  onToggleAi,
+  onToggleGit,
   onToggleGrid,
   onToggleFullscreen,
   pomodoroOpen,
@@ -422,7 +363,7 @@ function WorkspaceDock({
         label={explorerOpen ? "Fechar explorador" : "Abrir explorador"}
         onClick={onToggleExplorer}
       />
-      <WorkspaceDockButton icon="chat" label={aiOpen ? "Fechar AI" : "Abrir AI"} onClick={onToggleAi} />
+      <WorkspaceDockButton icon="git" label={gitOpen ? "Fechar Git" : "Abrir Git"} onClick={onToggleGit} />
       <WorkspaceDockButton
         icon="search"
         label={browserOpen ? "Fechar navegador" : "Abrir navegador"}
