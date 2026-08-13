@@ -1,8 +1,12 @@
 import { app, BrowserWindow, clipboard, ipcMain, nativeImage, nativeTheme, session, shell } from "electron";
-import { autoUpdater } from "electron-updater";
+import electronUpdater from "electron-updater";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
+
+// electron-updater e CommonJS. Em um processo principal ESM, o export nomeado
+// nao e garantido pelo loader do Electron; extraimos a API do export default.
+const { autoUpdater } = electronUpdater;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, "..");

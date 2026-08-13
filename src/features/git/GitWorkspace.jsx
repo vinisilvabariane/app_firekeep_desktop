@@ -33,7 +33,7 @@ export const GitWorkspace = memo(function GitWorkspace({ open, onClose, gridClas
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [projectPath, setProjectPath] = useState(() => localStorage.getItem("firekeep:gitProjectPath") ?? "");
+  const [projectPath, setProjectPath] = useState("");
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [folder, setFolder] = useState(null);
   const [folderPathDraft, setFolderPathDraft] = useState("");
@@ -67,7 +67,6 @@ export const GitWorkspace = memo(function GitWorkspace({ open, onClose, gridClas
       setBranches(nextOverview.branches ?? []);
       setBranchSelection(nextStatus.branch);
       setProjectPath(nextStatus.root);
-      localStorage.setItem("firekeep:gitProjectPath", nextStatus.root);
     } catch (cause) {
       setStatus(null);
       setError(cause.message);
@@ -78,12 +77,11 @@ export const GitWorkspace = memo(function GitWorkspace({ open, onClose, gridClas
 
   useEffect(() => {
     if (!open) return;
-    checkGitAvailability().then((available) => {
-      if (available && projectPath.trim()) refresh();
-    });
+    localStorage.removeItem("firekeep:gitProjectPath");
+    checkGitAvailability();
   // Reabre apenas o último repositório confirmado, sem consultar a cada edição do campo.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [checkGitAvailability, open]);
 
   const selectChange = useCallback(async (change, staged) => {
     setSelected({ ...change, staged });
