@@ -8,6 +8,23 @@ Firekeep. Entradas historicas que antes apareciam como `1.0.0`, `1.0.1`,
 `1.1.0`, `1.2.0`, `1.3.0` e `1.4.0` foram reclassificadas como betas durante o
 desenvolvimento da versao estavel.
 
+## 1.0.2 - 2026-08-18
+
+Resumo: correcoes no terminal integrado para apps de tela cheia como o
+Claude Code e o Codex, alem de suporte a copiar e colar.
+
+### Correcoes e melhorias
+
+- Removida a conversao automatica de `\n` para `\r\n` no terminal (xterm.js),
+  que desalinhava o cursor e embaralhava o texto em apps com redesenho de tela
+  inteira, como o Claude Code.
+- Tecla `Tab` deixou de ser interceptada para o autocomplete de caminho proprio
+  do Firekeep e agora e sempre encaminhada ao processo em execucao no
+  terminal (shell, Claude Code, Codex etc.).
+- Terminal ganhou copiar com `Ctrl+C` quando ha texto selecionado, sem afetar
+  o `Ctrl+C` de interromper processos quando nao ha selecao, e colar com o
+  botao direito do mouse.
+
 ## 1.0.0 - 2026-08-12
 
 Fonte: consolidacao do workspace desde a `beta.1.9`.

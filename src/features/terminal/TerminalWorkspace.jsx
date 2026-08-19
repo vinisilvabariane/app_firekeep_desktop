@@ -9,7 +9,6 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { Icon } from "../../shared/Icon";
-import { completeFileSystemPath } from "../../shared/api";
 
 const DEFAULT_TERMINAL_CWD = "C:\\";
 const MAX_PENDING_OUTPUT = 256 * 1024;
@@ -212,8 +211,6 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
   const terminalRef = useRef(null);
   const fitAddonRef = useRef(null);
   const socketRef = useRef(null);
-  const inputLineRef = useRef("");
-  const currentCwdRef = useRef(cwd);
   const visibleRef = useRef(active);
   const pendingOutputRef = useRef("");
   const zoomWheelDeltaRef = useRef(0);
@@ -247,7 +244,6 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
     const terminal = new Terminal({
       allowProposedApi: false,
       allowTransparency: true,
-      convertEol: true,
       cursorBlink: true,
       cursorStyle: "bar",
       fontFamily: '"Cascadia Code", "SFMono-Regular", Consolas, monospace',
@@ -286,12 +282,16 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
     const socket = new WebSocket(createTerminalUrl(cwd, terminal.cols, terminal.rows));
     socketRef.current = socket;
 
-    const inputDisposable = terminal.onData((data) => {
-      if (data === "\t") {
-        completePathInput();
-        return;
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (event.type !== "keydown" || !event.ctrlKey || event.shiftKey || event.altKey) return true;
+      if (event.key.toLowerCase() === "c" && terminal.hasSelection()) {
+        navigator.clipboard?.writeText(terminal.getSelection()).catch(() => {});
+        return false;
       }
-      trackInputLine(data);
+      return true;
+    });
+
+    const inputDisposable = terminal.onData((data) => {
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: "input", data }));
       }
@@ -315,7 +315,6 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
         } else {
           pendingOutputRef.current = appendPendingOutput(pendingOutputRef.current, message.data);
         }
-        updateCwdFromOutput(message.data);
       }
       if (message.type === "error") {
         terminal.writeln(`\r\n${message.data}`);
@@ -422,6 +421,15 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
             if (path) writeToTerminal(quoteShellPath(path));
           }
         }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          navigator.clipboard
+            ?.readText()
+            .then((text) => {
+              if (text) writeToTerminal(text);
+            })
+            .catch(() => {});
+        }}
       />
     </Paper>
   );
@@ -429,43 +437,6 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
   function writeToTerminal(data) {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: "input", data }));
-      trackInputLine(data);
-    }
-  }
-
-  function trackInputLine(data) {
-    for (const char of data) {
-      if (char === "\r" || char === "\n") {
-        inputLineRef.current = "";
-      } else if (char === "\u007f" || char === "\b") {
-        inputLineRef.current = inputLineRef.current.slice(0, -1);
-      } else if (char >= " ") {
-        inputLineRef.current += char;
-      }
-    }
-  }
-
-  async function completePathInput() {
-    const token = readPathToken(inputLineRef.current);
-    if (!token.value) return;
-
-    try {
-      const result = await completeFileSystemPath(currentCwdRef.current, token.value);
-      if (!result.replacement || result.replacement === token.value) return;
-      const insertion = result.replacement.slice(token.value.length);
-      if (insertion) {
-        writeToTerminal(insertion);
-      }
-    } catch {
-      // Shell completion remains available if Firekeep cannot resolve a path.
-    }
-  }
-
-  function updateCwdFromOutput(data) {
-    const matches = [...data.matchAll(/PS ([A-Z]:\\[^>\r\n]*)> /gi)];
-    const lastMatch = matches.at(-1);
-    if (lastMatch?.[1]) {
-      currentCwdRef.current = lastMatch[1];
     }
   }
 }
@@ -505,11 +476,4 @@ function createTerminalUrl(cwd, cols, rows) {
 
 function quoteShellPath(value) {
   return `"${String(value).replaceAll('"', '`"')}"`;
-}
-
-function readPathToken(line) {
-  const match = line.match(/(?:"[^"]*|'[^']*'|[^\s]+)$/);
-  return {
-    value: match?.[0] ?? "",
-  };
 }
