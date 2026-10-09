@@ -1,5 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import Box from "@mui/material/Box";
@@ -11,7 +13,6 @@ import Typography from "@mui/material/Typography";
 import { Icon } from "../../shared/Icon";
 
 const DEFAULT_TERMINAL_CWD = "C:\\";
-const MAX_PENDING_OUTPUT = 256 * 1024;
 
 export const TerminalWorkspace = memo(function TerminalWorkspace({
   open,
@@ -211,8 +212,6 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
   const terminalRef = useRef(null);
   const fitAddonRef = useRef(null);
   const socketRef = useRef(null);
-  const visibleRef = useRef(active);
-  const pendingOutputRef = useRef("");
   const zoomWheelDeltaRef = useRef(0);
   const [status, setStatus] = useState("conectando");
 
@@ -242,13 +241,15 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
     if (!terminalHostRef.current || !cwd) return undefined;
 
     const terminal = new Terminal({
-      allowProposedApi: false,
+      // O addon Unicode 11 usa terminal.unicode, que e API proposta.
+      allowProposedApi: true,
       allowTransparency: true,
       cursorBlink: true,
       cursorStyle: "bar",
-      fontFamily: '"Cascadia Code", "SFMono-Regular", Consolas, monospace',
+      fontFamily: '"Cascadia Code", "Cascadia Mono", "SFMono-Regular", Consolas, monospace',
       fontSize,
       lineHeight: 1.18,
+      scrollback: 5000,
       theme: {
         background: "#00000000",
         foreground: "#f2ecdd",
@@ -276,7 +277,15 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
     terminal.loadAddon(fitAddon);
+
+    // Unicode 11: emojis, simbolos e glifos largos passam a ocupar 2 colunas,
+    // como os apps de tela cheia (Claude Code, Codex, opencode) assumem. Sem
+    // isso a grade do xterm diverge da do app e o texto sai cortado/deslocado.
+    terminal.loadAddon(new Unicode11Addon());
+    terminal.unicode.activeVersion = "11";
+
     terminal.open(terminalHostRef.current);
+    const webgl = loadWebglRenderer(terminal);
     fitAddon.fit();
 
     const socket = new WebSocket(createTerminalUrl(cwd, terminal.cols, terminal.rows));
@@ -310,11 +319,19 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
         return;
       }
       if (message.type === "output") {
-        if (visibleRef.current) {
-          terminal.write(message.data);
-        } else {
-          pendingOutputRef.current = appendPendingOutput(pendingOutputRef.current, message.data);
-        }
+        // Escreve sempre, mesmo com a aba oculta: o xterm processa em segundo
+        // plano e nada e perdido/fatiado. Quando o xterm termina de consumir o
+        // bloco, confirmamos ao servidor para liberar o controle de fluxo.
+        const chars = message.data.length;
+        terminal.write(message.data, () => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "ack", chars }));
+          }
+        });
+      }
+      if (message.type === "hello") {
+        // ConPTY precisa das heuristicas de quebra de linha do xterm para Windows.
+        terminal.options.windowsPty = message.windowsPty ?? {};
       }
       if (message.type === "error") {
         terminal.writeln(`\r\n${message.data}`);
@@ -335,14 +352,13 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
     let fitFrame = null;
     let lastCols = terminal.cols;
     let lastRows = terminal.rows;
-    const resizeObserver = new ResizeObserver((entries) => {
-      // Skip while hidden (minimized) — fitting a 0-size element breaks xterm.
-      const rect = entries[0]?.contentRect;
-      if (rect && (rect.width === 0 || rect.height === 0)) return;
-
+    const scheduleFit = () => {
       if (fitFrame) window.cancelAnimationFrame(fitFrame);
       fitFrame = window.requestAnimationFrame(() => {
         fitFrame = null;
+        const host = terminalHostRef.current;
+        // Skip while hidden (minimized) — fitting a 0-size element breaks xterm.
+        if (!host || host.clientWidth === 0 || host.clientHeight === 0) return;
         fitAddon.fit();
         if (socket.readyState === WebSocket.OPEN && (terminal.cols !== lastCols || terminal.rows !== lastRows)) {
           lastCols = terminal.cols;
@@ -356,30 +372,40 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
           );
         }
       });
-    });
+    };
+    const resizeObserver = new ResizeObserver(scheduleFit);
     resizeObserver.observe(terminalHostRef.current);
+
+    // A fonte do terminal (Cascadia) costuma carregar depois do primeiro fit():
+    // a celula cresce, o numero de linhas calculado deixa de caber e a ultima
+    // linha (a de status do Claude Code/Codex) fica cortada. Refaz o fit quando
+    // as fontes terminam de carregar.
+    const fonts = document.fonts;
+    fonts?.ready.then(scheduleFit).catch(() => {});
+    fonts?.addEventListener("loadingdone", scheduleFit);
 
     return () => {
       resizeObserver.disconnect();
+      fonts?.removeEventListener("loadingdone", scheduleFit);
       if (fitFrame) window.cancelAnimationFrame(fitFrame);
       inputDisposable.dispose();
       socket.close();
+      webgl?.dispose();
       terminal.dispose();
-      pendingOutputRef.current = "";
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cwd]);
 
   useEffect(() => {
-    visibleRef.current = active;
     if (!active) return;
 
     window.requestAnimationFrame(() => {
-      const pending = pendingOutputRef.current;
-      pendingOutputRef.current = "";
-      if (pending) terminalRef.current?.write(pending);
+      const terminal = terminalRef.current;
+      if (!terminal) return;
       fitAddonRef.current?.fit();
-      terminalRef.current?.focus();
+      // A aba ficou oculta (visibility: hidden); forca o redesenho da tela.
+      terminal.refresh(0, terminal.rows - 1);
+      terminal.focus();
     });
   }, [active]);
 
@@ -426,7 +452,10 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
           navigator.clipboard
             ?.readText()
             .then((text) => {
-              if (text) writeToTerminal(text);
+              // terminal.paste respeita o bracketed paste: o Claude Code e o
+              // Codex recebem o texto como UMA colagem, em vez de linha a linha
+              // (que disparava Enter a cada quebra e cortava o conteudo).
+              if (text) terminalRef.current?.paste(text);
             })
             .catch(() => {});
         }}
@@ -441,11 +470,19 @@ function TerminalPane({ active, cwd, terminalId, fontSize, onStatus, onZoom }) {
   }
 }
 
-function appendPendingOutput(current, incoming) {
-  const next = `${current}${incoming}`;
-  if (next.length <= MAX_PENDING_OUTPUT) return next;
-  const notice = "\r\n[saida anterior omitida]\r\n";
-  return `${notice}${next.slice(-(MAX_PENDING_OUTPUT - notice.length))}`;
+// Renderer WebGL: muito mais rapido que o DOM e sem artefatos de cursor em apps
+// com redesenho de tela inteira. Se a GPU nao estiver disponivel (ou o contexto
+// for perdido), cai de volta para o renderer DOM sem quebrar o terminal.
+function loadWebglRenderer(terminal) {
+  try {
+    const webgl = new WebglAddon();
+    webgl.onContextLoss(() => webgl.dispose());
+    terminal.loadAddon(webgl);
+    return webgl;
+  } catch (error) {
+    console.warn("[firekeep] renderer WebGL indisponivel, usando DOM:", error);
+    return null;
+  }
 }
 
 function createTerminalDescriptor({ number, title, cwd } = {}) {

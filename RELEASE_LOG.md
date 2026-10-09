@@ -8,6 +8,37 @@ Firekeep. Entradas historicas que antes apareciam como `1.0.0`, `1.0.1`,
 `1.1.0`, `1.2.0`, `1.3.0` e `1.4.0` foram reclassificadas como betas durante o
 desenvolvimento da versao estavel.
 
+## 1.0.3 - 2026-10-09
+
+Resumo: terminal integrado reescrito para rodar agentes de tela cheia
+(Claude Code, Codex, opencode) sem texto cortado, cursor fora do lugar ou
+travamento da digitacao.
+
+### Correcoes e melhorias
+
+- Renderer WebGL no xterm.js (com fallback para DOM): redesenho de tela
+  inteira fica fluido e sem artefatos de cursor.
+- Suporte a Unicode 11 (addon-unicode11): emojis, simbolos e glifos largos
+  passam a ocupar 2 colunas, alinhando a grade do xterm com a dos agentes.
+- Heuristicas de ConPTY do xterm ativadas (`windowsPty`) a partir do build do
+  Windows informado pelo servidor.
+- Controle de fluxo entre pty e xterm (ack por bloco processado, `pause` e
+  `resume` no node-pty): saida intensa nao enche mais a fila do xterm, que era
+  o que atrasava a tela e deixava o terminal sem aceitar digitacao.
+- Saida nao e mais fatiada em blocos de 64 KB nem descartada quando a fila
+  enchia; cada flush envia tudo o que acumulou.
+- Abas ocultas continuam recebendo a saida direto no xterm, em vez de um
+  buffer que truncava sequencias de escape ao trocar de aba.
+- Limites de colunas e linhas do pty ampliados (antes 220x80): monitores
+  largos com fonte pequena ja estouravam o limite e o pty ficava com tamanho
+  diferente do xterm, cortando o texto.
+- Colar com o botao direito usa `terminal.paste`, respeitando o bracketed
+  paste: Claude Code e Codex recebem o texto como uma unica colagem.
+- No Windows o shell passa a ser o PowerShell 7 (`pwsh`) quando instalado,
+  com fallback para o Windows PowerShell 5.1; e o terminal usa o `conpty.dll`
+  empacotado com o node-pty (o mesmo do Windows Terminal), com fallback para o
+  ConPTY do sistema. `FIREKEEP_CONPTY_DLL=0` desliga.
+
 ## 1.0.2 - 2026-08-18
 
 Resumo: correcoes no terminal integrado para apps de tela cheia como o

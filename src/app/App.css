@@ -1922,13 +1922,18 @@
 .terminalHost {
   min-width: 0;
   min-height: 0;
-  padding: 8px 10px 10px;
+  /* Sem padding aqui: o FitAddon do xterm usa a altura/largura total do pai e
+     so desconta o padding do proprio .xterm. Padding no host fazia o fit
+     calcular uma linha a mais e a ultima linha ficava cortada. */
+  padding: 0;
   overflow: hidden;
   background: rgba(7, 9, 13, 0.08);
 }
 
 .terminalHost .xterm {
   height: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px 10px;
 }
 
 .terminalHost .xterm-viewport {
