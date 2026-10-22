@@ -13,7 +13,7 @@ import { ThemeProvider } from "@mui/material/styles";
 import { EditorErrorBoundary } from "../features/editor/EditorErrorBoundary";
 import { VisualDock } from "../features/background/VisualDock";
 import { WindowChrome } from "../features/desktop/WindowChrome";
-import { DateTimeWidget } from "../features/clock/DateTimeWidget";
+import { PomodoroBridge } from "../features/pomodoro/PomodoroBridge";
 import { PomodoroWidget } from "../features/pomodoro/PomodoroWidget";
 import { DEFAULT_SETTINGS, normalizeSettings } from "../features/video/defaultVideos";
 import { MusicDock } from "../features/video/MusicDock";
@@ -28,7 +28,6 @@ const LazyCodeEditor = lazy(() => import("../features/editor/CodeEditor").then((
 const LazyFileExplorer = lazy(() => import("../features/explorer/FileExplorer").then(({ FileExplorer }) => ({ default: FileExplorer })));
 const LazySearchBrowser = lazy(() => import("../features/browser/SearchBrowser").then(({ SearchBrowser }) => ({ default: SearchBrowser })));
 const LazyTerminalWorkspace = lazy(() => import("../features/terminal/TerminalWorkspace").then(({ TerminalWorkspace }) => ({ default: TerminalWorkspace })));
-const LazyGitWorkspace = lazy(() => import("../features/git/GitWorkspace").then(({ GitWorkspace }) => ({ default: GitWorkspace })));
 
 export default function App() {
   return (
@@ -52,7 +51,6 @@ function Firekeep() {
   const [videoCurtainVisible, setVideoCurtainVisible] = useState(true);
   const [startupSettled, setStartupSettled] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
-  const [gitOpen, setGitOpen] = useState(false);
   const [workspaceGrid, setWorkspaceGrid] = useState(false);
   const [gridOrder, setGridOrder] = useState(() => (Array.isArray(storedSettings.gridOrder) ? storedSettings.gridOrder : []));
   const [draggedGridPanel, setDraggedGridPanel] = useState(null);
@@ -122,15 +120,14 @@ function Firekeep() {
 
   const shadeStrength = Math.max(0, Math.min(1, (100 - settings.visualBrightness) / 80));
   const deepShadeStrength = Math.max(0, Math.min(1, (20 - settings.visualBrightness) / 20));
-  const widgetsVisible = settings.pomodoroOpen || settings.clockOpen || settings.musicOpen || settings.visualOpen;
+  const widgetsVisible = settings.pomodoroOpen || settings.musicOpen || settings.visualOpen;
   const visibleGridPanelIds = useMemo(
     () => [
       openFile ? "editor" : null,
       browserOpen ? "browser" : null,
       terminalOpen ? "terminal" : null,
-      gitOpen ? "git" : null,
     ].filter(Boolean),
-    [browserOpen, gitOpen, openFile, terminalOpen],
+    [browserOpen, openFile, terminalOpen],
   );
   const gridPanelIds = useMemo(
     () => [
@@ -186,7 +183,6 @@ function Firekeep() {
     openFile && terminalOpen ? "codeTerminalSplit" : "",
     workspaceGrid ? "workspaceGrid" : "",
     browserOpen ? "browserOpen" : "",
-    gitOpen ? "gitOpen" : "",
     terminalOpen ? "terminalOpen" : "",
     widgetsVisible ? "" : "widgetsClosed",
   ]
@@ -226,24 +222,21 @@ function Firekeep() {
       />
       <Box className={videoCurtainVisible ? "videoCurtain isVisible" : "videoCurtain"} />
       <WindowChrome version={packageInfo.version} />
+      <PomodoroBridge />
       <WorkspaceDock
         explorerOpen={explorerOpen}
         terminalOpen={terminalOpen}
         browserOpen={browserOpen}
-        gitOpen={gitOpen}
         gridOpen={workspaceGrid}
         onToggleExplorer={toggleExplorer}
         onToggleTerminal={toggleTerminal}
         onToggleBrowser={toggleBrowser}
-        onToggleGit={() => setGitOpen((current) => !current)}
         onToggleGrid={() => setWorkspaceGrid((current) => !current)}
         onToggleFullscreen={() => globalThis.window?.firekeepWindow?.toggleFullscreen?.()}
         pomodoroOpen={settings.pomodoroOpen}
-        clockOpen={settings.clockOpen}
         musicOpen={settings.musicOpen}
         visualOpen={settings.visualOpen}
         onTogglePomodoro={() => updateSettings({ pomodoroOpen: !settings.pomodoroOpen })}
-        onToggleClock={() => updateSettings({ clockOpen: !settings.clockOpen })}
         onToggleMusic={() => updateSettings({ musicOpen: !settings.musicOpen })}
         onToggleVisual={() => updateSettings({ visualOpen: !settings.visualOpen })}
       />
@@ -261,7 +254,6 @@ function Firekeep() {
 
       <Stack className="rightWidgets" sx={{ gap: 1 }}>
         {settings.pomodoroOpen ? <PomodoroWidget /> : null}
-        {settings.clockOpen ? <DateTimeWidget /> : null}
         {settings.musicOpen ? (
           <MusicDock
             youtubeLinks={settings.youtubeLinks}
@@ -310,7 +302,6 @@ function Firekeep() {
           />
         </Suspense>
       ) : null}
-      {gitOpen ? <Suspense fallback={null}><LazyGitWorkspace open={gitOpen} onClose={() => setGitOpen(false)} gridClassName={gridClassFor("git")} gridDraggable={workspaceGrid} onGridDragStart={(event) => startGridDrag("git", event)} onGridDragOver={allowGridDrop} onGridDrop={(event) => dropGridPanel("git", event)} /></Suspense> : null}
       {openFile ? (
         <EditorErrorBoundary key={openFile.path} onClose={closeEditor} gridClassName={gridClassFor("editor")}>
           <Suspense fallback={null}>
@@ -351,20 +342,16 @@ function WorkspaceDock({
   explorerOpen,
   terminalOpen,
   browserOpen,
-  gitOpen,
   gridOpen,
   onToggleExplorer,
   onToggleTerminal,
   onToggleBrowser,
-  onToggleGit,
   onToggleGrid,
   onToggleFullscreen,
   pomodoroOpen,
-  clockOpen,
   musicOpen,
   visualOpen,
   onTogglePomodoro,
-  onToggleClock,
   onToggleMusic,
   onToggleVisual,
 }) {
@@ -375,7 +362,6 @@ function WorkspaceDock({
         label={explorerOpen ? "Fechar explorador" : "Abrir explorador"}
         onClick={onToggleExplorer}
       />
-      <WorkspaceDockButton icon="git" label={gitOpen ? "Fechar Git" : "Abrir Git"} onClick={onToggleGit} />
       <WorkspaceDockButton
         icon="search"
         label={browserOpen ? "Fechar navegador" : "Abrir navegador"}
@@ -399,11 +385,6 @@ function WorkspaceDock({
         icon="timer"
         label={pomodoroOpen ? "Ocultar pomodoro" : "Mostrar pomodoro"}
         onClick={onTogglePomodoro}
-      />
-      <WorkspaceDockButton
-        icon="calendar"
-        label={clockOpen ? "Ocultar relógio" : "Mostrar relógio"}
-        onClick={onToggleClock}
       />
       <WorkspaceDockButton
         icon="music"

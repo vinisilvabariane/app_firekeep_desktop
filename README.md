@@ -87,7 +87,6 @@ src/
     firekeep-icon.ico      # icone do app no Windows
   features/
     background/            # VisualDock (estado) + VisualPanel (painel do fundo visual)
-    clock/                 # horario e data
     desktop/               # barra customizada da janela
     editor/                # editor de codigo (abre/edita/salva arquivos)
     explorer/              # explorador de arquivos em arvore

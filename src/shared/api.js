@@ -123,15 +123,3 @@ export function completeFileSystemPath(cwd, fragment) {
   return requestJson(`/api/fs/complete?${query.toString()}`, { cache: "no-store" });
 }
 
-export function fetchGitStatus(root) { return requestJson(`/api/git/status?root=${encodeURIComponent(root)}`, { cache: "no-store" }); }
-export function fetchGitAvailability() { return requestJson("/api/git/availability", { cache: "no-store" }); }
-export function fetchGitDiff(root, path, staged) { return requestJson(`/api/git/diff?root=${encodeURIComponent(root)}&path=${encodeURIComponent(path)}&staged=${Boolean(staged)}`, { cache: "no-store" }); }
-export function stageGitFile(root, path) { return requestJson("/api/git/stage", jsonBody("POST", { root, path })); }
-export function unstageGitFile(root, path) { return requestJson("/api/git/unstage", jsonBody("POST", { root, path })); }
-export function discardGitWorkingChanges(root) { return requestJson("/api/git/discard-working-changes", jsonBody("POST", { root })); }
-export function resolveGitConflict(root, path, strategy) { return requestJson("/api/git/resolve-conflict", jsonBody("POST", { root, path, strategy })); }
-export function commitGit(root, message) { return requestJson("/api/git/commit", jsonBody("POST", { root, message })); }
-export function pullGit(root) { return requestJson("/api/git/pull", jsonBody("POST", { root })); }
-export function pushGit(root) { return requestJson("/api/git/push", jsonBody("POST", { root })); }
-export function fetchGitOverview(root) { return requestJson(`/api/git/overview?root=${encodeURIComponent(root)}`, { cache: "no-store" }); }
-export function checkoutGitBranch(root, branch, create = false) { return requestJson("/api/git/checkout", jsonBody("POST", { root, branch, create })); }

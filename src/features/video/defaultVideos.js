@@ -14,7 +14,6 @@ export const DEFAULT_SETTINGS = {
   terminalOpen: false,
   explorerOpen: false,
   pomodoroOpen: true,
-  clockOpen: true,
   musicOpen: true,
   visualOpen: true,
 };
@@ -56,7 +55,6 @@ export function normalizeSettings(value) {
     terminalOpen: Boolean(settings.terminalOpen ?? settings.chatOpen ?? false),
     explorerOpen: Boolean(settings.explorerOpen ?? false),
     pomodoroOpen: Boolean(settings.pomodoroOpen ?? true),
-    clockOpen: Boolean(settings.clockOpen ?? true),
     musicOpen: Boolean(settings.musicOpen ?? true),
     visualOpen: Boolean(settings.visualOpen ?? true),
     backgrounds,

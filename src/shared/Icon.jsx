@@ -38,11 +38,11 @@ const ICONS = {
   drag: "M9 4h2v2H9V4Zm4 0h2v2h-2V4ZM9 9h2v2H9V9Zm4 0h2v2h-2V9ZM9 14h2v2H9v-2Zm4 0h2v2h-2v-2Zm-4 4h2v2H9v-2Zm4 0h2v2h-2v-2Z",
   fullscreen:
     "M5 5h6v2H7v4H5V5Zm8 0h6v6h-2V7h-4V5ZM7 13v4h4v2H5v-6h2Zm10 4v-4h2v6h-6v-2h4Z",
-  git: "M6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm0 2a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm0 4h2v5a4 4 0 0 0 4 4h3v-2h-3a2 2 0 0 1-2-2V9Zm12 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm0 2a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z",
   image:
     "M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 12.5 4.2-4.2 3.1 3.1 2.5-2.5L19 17.1V6H5v10.5ZM8.5 10A1.5 1.5 0 1 0 8.5 7 1.5 1.5 0 0 0 8.5 10Z",
   maximize: "M5 5h14v14H5V5Zm2 2v10h10V7H7Z",
   minimize: "M5 12h14v2H5v-2Z",
+  miniplayer: "M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4h-2V7H5v10h5v2H5a2 2 0 0 1-2-2V7Zm9 6h9v6h-9v-6Z",
   music:
     "M18 3v12.5A3.5 3.5 0 1 1 16 12.34V7.2l-7 1.4v8.9A3.5 3.5 0 1 1 7 14.34V5l11-2Z",
   pause: "M6 5h4v14H6V5Zm8 0h4v14h-4V5Z",

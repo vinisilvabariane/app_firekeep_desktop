@@ -6,7 +6,6 @@ import { defaultRoot } from "./config.js";
 import { registerApiRoutes } from "./routes.js";
 import { seedInitialData } from "./seed.js";
 import { createTerminalGateway } from "./terminal-gateway.js";
-import { createGitService } from "./git-service.js";
 
 export async function createFirekeepServer({
   root = defaultRoot,
@@ -18,7 +17,6 @@ export async function createFirekeepServer({
   const httpServer = createServer(app);
   let viteServer;
   const terminalGateway = createTerminalGateway({ httpServer, root });
-  const git = createGitService();
 
   await seedInitialData({ root, storageRoot });
 
@@ -26,7 +24,7 @@ export async function createFirekeepServer({
   // editor); uploads de imagem passam por express.raw na propria rota.
   app.use(express.json({ limit: "8mb" }));
 
-  registerApiRoutes(app, { root, storageRoot, git });
+  registerApiRoutes(app, { root, storageRoot });
 
   if (production) {
     app.use(express.static(path.join(root, "dist")));

@@ -1,5 +1,6 @@
-import { app, BrowserWindow, clipboard, ipcMain, nativeImage, nativeTheme, session, shell } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain, nativeImage, nativeTheme, screen, session, shell } from "electron";
 import electronUpdater from "electron-updater";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
@@ -17,8 +18,16 @@ const appIcon = path.join(
   process.platform === "win32" ? "firekeep-taskbar.ico" : "logo-sem-fundo.png",
 );
 const isDev = !app.isPackaged;
+const SPLASH_SIZE = { width: 640, height: 340 };
+const SPLASH_MIN_MS = 3000;
+// Miniplayer do pomodoro: proporcao fixa, o conteudo escala com a janela.
+const MINI_RATIO = 2;
+const MINI_SIZE = { width: 320, height: 160, minWidth: 240, minHeight: 120, maxWidth: 720, maxHeight: 360 };
+const MINI_COMMANDS = new Set(["toggle", "skip", "reset", "sound"]);
 let firekeepServer;
 let mainWindow;
+let miniWindow;
+let lastPomodoroState = null;
 let mainUrl;
 let recoveryPending = false;
 let autoUpdateConfigured = false;
@@ -61,8 +70,72 @@ function isZoomShortcut(input) {
   return ["+", "-", "0", "Add", "Subtract"].includes(input.key);
 }
 
+function createSplashWindow() {
+  const splash = new BrowserWindow({
+    width: SPLASH_SIZE.width,
+    height: SPLASH_SIZE.height,
+    transparent: true,
+    frame: false,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    show: false,
+    center: true,
+    hasShadow: false,
+    backgroundColor: "#00000000",
+    title: "Firekeep",
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+  splash.once("ready-to-show", () => splash.show());
+  splash
+    .loadFile(path.join(__dirname, "splash.html"), { query: { v: app.getVersion() } })
+    .catch(() => {});
+  return splash;
+}
+
+function setSplashStage(splash, text) {
+  if (!splash || splash.isDestroyed()) return;
+  splash.webContents.executeJavaScript(`window.setStage?.(${JSON.stringify(text)})`).catch(() => {});
+}
+
+async function dismissSplash(splash) {
+  if (!splash || splash.isDestroyed()) return;
+  await splash.webContents.executeJavaScript("window.leave?.()").catch(() => {});
+  await delay(340);
+  if (!splash.isDestroyed()) splash.close();
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function createWindow() {
   nativeTheme.themeSource = "dark";
+  const splashShownAt = Date.now();
+  const splash = createSplashWindow();
+
+  try {
+    await openMainWindow(splash);
+  } catch (error) {
+    if (!splash.isDestroyed()) splash.close();
+    throw error;
+  }
+
+  // O splash fica o tempo minimo para a animacao terminar, mesmo que o app
+  // suba mais rapido; se o app demorar mais, ele so sai quando estiver pronto.
+  setSplashStage(splash, "Pronto");
+  await delay(Math.max(0, SPLASH_MIN_MS - (Date.now() - splashShownAt)));
+  mainWindow?.show();
+  await dismissSplash(splash);
+}
+
+async function openMainWindow(splash) {
   await configureBrowserSession();
   const windowIcon = nativeImage.createFromPath(appIcon);
 
@@ -74,8 +147,10 @@ async function createWindow() {
   });
 
   mainUrl = firekeepServer.url;
+  setSplashStage(splash, "Carregando a interface");
 
   mainWindow = new BrowserWindow({
+    show: false,
     width: 1440,
     height: 960,
     minWidth: 1024,
@@ -127,11 +202,123 @@ async function createWindow() {
     configureAutoUpdates();
   });
 
+  mainWindow.on("closed", () => {
+    mainWindow = undefined;
+    if (miniWindow && !miniWindow.isDestroyed()) miniWindow.close();
+  });
+
   await mainWindow.loadURL(mainUrl);
 
   if (isDev && process.env.FIREKEEP_DEVTOOLS === "1") {
     mainWindow.webContents.openDevTools({ mode: "detach" });
   }
+}
+
+function miniBoundsFile() {
+  return path.join(app.getPath("userData"), "mini-player.json");
+}
+
+function loadMiniBounds() {
+  try {
+    const bounds = JSON.parse(fs.readFileSync(miniBoundsFile(), "utf8"));
+    const numbers = ["x", "y", "width", "height"].every((key) => Number.isFinite(bounds[key]));
+    if (!numbers) return null;
+    // Ignora a posicao salva se o monitor onde ela estava nao existe mais.
+    const visible = screen.getAllDisplays().some(({ workArea }) => {
+      return (
+        bounds.x + bounds.width > workArea.x + 40 &&
+        bounds.x < workArea.x + workArea.width - 40 &&
+        bounds.y + bounds.height > workArea.y + 40 &&
+        bounds.y < workArea.y + workArea.height - 40
+      );
+    });
+    return visible ? bounds : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveMiniBounds(window) {
+  if (window.isDestroyed()) return;
+  try {
+    fs.writeFileSync(miniBoundsFile(), JSON.stringify(window.getBounds()));
+  } catch {
+    // Sem permissao de escrita: o miniplayer so abre na posicao padrao da proxima vez.
+  }
+}
+
+function notifyMiniVisibility() {
+  const open = Boolean(miniWindow && !miniWindow.isDestroyed());
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("mini:visibility", open);
+}
+
+function openMiniPlayer() {
+  if (miniWindow && !miniWindow.isDestroyed()) {
+    miniWindow.show();
+    return;
+  }
+  if (!mainUrl) return;
+
+  const saved = loadMiniBounds();
+  const windowIcon = nativeImage.createFromPath(appIcon);
+  miniWindow = new BrowserWindow({
+    width: saved?.width ?? MINI_SIZE.width,
+    height: saved?.height ?? MINI_SIZE.height,
+    x: saved?.x,
+    y: saved?.y,
+    minWidth: MINI_SIZE.minWidth,
+    minHeight: MINI_SIZE.minHeight,
+    maxWidth: MINI_SIZE.maxWidth,
+    maxHeight: MINI_SIZE.maxHeight,
+    frame: false,
+    resizable: true,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    show: false,
+    backgroundColor: "#0a0b10",
+    title: "Firekeep Pomodoro",
+    icon: windowIcon.isEmpty() ? appIcon : windowIcon,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, "preload.cjs"),
+      sandbox: true,
+      backgroundThrottling: false,
+    },
+  });
+  const mini = miniWindow;
+
+  mini.setAspectRatio(MINI_RATIO);
+  // "screen-saver" mantem o miniplayer acima de apps em tela cheia.
+  mini.setAlwaysOnTop(true, "screen-saver");
+  mini.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
+  mini.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mini.once("ready-to-show", () => mini.show());
+
+  let saveTimer;
+  const scheduleSave = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => saveMiniBounds(mini), 400);
+  };
+  mini.on("move", scheduleSave);
+  mini.on("resize", scheduleSave);
+  mini.on("close", () => {
+    clearTimeout(saveTimer);
+    saveMiniBounds(mini);
+  });
+  mini.on("closed", () => {
+    if (miniWindow === mini) miniWindow = undefined;
+    notifyMiniVisibility();
+  });
+
+  mini.loadURL(`${mainUrl}?view=mini`).catch(() => {});
+  notifyMiniVisibility();
+}
+
+function closeMiniPlayer() {
+  if (miniWindow && !miniWindow.isDestroyed()) miniWindow.close();
 }
 
 function configureAutoUpdates() {
@@ -288,6 +475,40 @@ ipcMain.handle("clipboard:write-text", (_event, value) => {
 
 ipcMain.handle("app:install-update", () => {
   autoUpdater.quitAndInstall();
+});
+
+ipcMain.handle("mini:toggle", () => {
+  if (miniWindow && !miniWindow.isDestroyed()) {
+    closeMiniPlayer();
+    return false;
+  }
+  openMiniPlayer();
+  return true;
+});
+
+ipcMain.handle("mini:is-open", () => Boolean(miniWindow && !miniWindow.isDestroyed()));
+
+ipcMain.handle("mini:focus-main", () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+});
+
+// O renderer principal e a fonte do estado do pomodoro; o miniplayer so exibe
+// o que recebe e devolve comandos.
+ipcMain.on("pomodoro:publish", (event, snapshot) => {
+  if (event.sender !== mainWindow?.webContents) return;
+  lastPomodoroState = snapshot;
+  if (miniWindow && !miniWindow.isDestroyed()) miniWindow.webContents.send("pomodoro:state", snapshot);
+});
+
+ipcMain.handle("pomodoro:get-state", () => lastPomodoroState);
+
+ipcMain.on("pomodoro:command", (event, command) => {
+  if (event.sender !== miniWindow?.webContents) return;
+  if (!MINI_COMMANDS.has(command)) return;
+  mainWindow?.webContents.send("pomodoro:command", command);
 });
 
 app.whenReady().then(createWindow);

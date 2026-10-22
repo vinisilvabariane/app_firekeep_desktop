@@ -1,0 +1,314 @@
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: #0a0b10;
+}
+
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* Tudo escala com a largura da janela (cqw), entao redimensionar o miniplayer
+   mantem a composicao. A proporcao 2:1 e travada pelo Electron. */
+.mini {
+  --ink: #07080c;
+  --text: #f2ecdd;
+  --muted: rgba(242, 236, 221, 0.55);
+  --line: rgba(242, 236, 221, 0.12);
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  --phase-rgb: 255, 140, 66;
+  --phase: rgb(var(--phase-rgb));
+  position: fixed;
+  inset: 0;
+  container-type: size;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  color: var(--text);
+  background: linear-gradient(180deg, #0a0d16 0%, #0b0a10 58%, #140b0c 100%);
+}
+
+.mini.phase-short,
+.mini.phase-long {
+  --phase-rgb: 134, 199, 192;
+}
+
+.miniGlow {
+  position: absolute;
+  left: 50%;
+  bottom: -62cqh;
+  width: 130%;
+  height: 100cqh;
+  transform: translateX(-50%);
+  background: radial-gradient(50% 60% at 50% 100%, rgba(var(--phase-rgb), 0.34), rgba(var(--phase-rgb), 0.08) 46%, transparent 70%);
+  filter: blur(10px);
+  opacity: 0.55;
+  transition: opacity 600ms ease;
+}
+
+.mini.isRunning .miniGlow {
+  opacity: 0.85;
+  animation: miniBreath 4.6s ease-in-out infinite;
+}
+
+/* A borda de 6px fica fora da area de arrastar para a janela poder ser
+   redimensionada pelas bordas. */
+.miniSurface {
+  position: absolute;
+  inset: 6px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: 3.6cqw 4.2cqw 4cqw;
+  -webkit-app-region: drag;
+}
+
+.miniTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 6.4cqw;
+}
+
+.miniPhase {
+  display: flex;
+  align-items: center;
+  gap: 3cqw;
+}
+
+.miniLabel {
+  font-family: var(--display);
+  font-size: 4.6cqw;
+  font-style: italic;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  animation: miniLabelIn 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.miniRounds {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.1cqw;
+}
+
+.miniRounds i {
+  width: 1.4cqw;
+  height: 1.4cqw;
+  border-radius: 50%;
+  background: rgba(242, 236, 221, 0.16);
+  transition: background 300ms ease, box-shadow 300ms ease;
+}
+
+.miniRounds i.isDone {
+  background: rgba(var(--phase-rgb), 0.55);
+}
+
+.miniRounds i.isNow {
+  background: var(--phase);
+  box-shadow: 0 0 0.9cqw 0.1cqw rgba(var(--phase-rgb), 0.7);
+}
+
+.miniTools {
+  display: flex;
+  gap: 0.6cqw;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.mini:hover .miniTools,
+.miniTools:focus-within {
+  opacity: 1;
+}
+
+.miniTools button,
+.miniGhost,
+.miniPlay {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.miniTools button {
+  width: 6cqw;
+  height: 6cqw;
+  border-radius: 1.6cqw;
+}
+
+.miniTools button svg {
+  width: 3.8cqw;
+  height: 3.8cqw;
+}
+
+.miniTools button:hover {
+  color: var(--text);
+  background: rgba(242, 236, 221, 0.08);
+}
+
+.miniTools button[aria-pressed="true"] {
+  color: var(--phase);
+}
+
+.miniBody {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2cqw;
+}
+
+.miniTime {
+  font-family: var(--mono);
+  font-size: 17cqw;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: #fff2e4;
+  text-shadow: 0 0 5cqw rgba(var(--phase-rgb), 0.3);
+  opacity: 0.6;
+  transition: opacity 300ms ease;
+}
+
+.mini.isRunning .miniTime {
+  opacity: 1;
+}
+
+.miniControls {
+  display: flex;
+  align-items: center;
+  gap: 1.4cqw;
+}
+
+.miniPlay {
+  width: 13.5cqw;
+  height: 13.5cqw;
+  border-radius: 50%;
+  color: #0a0806;
+  background: linear-gradient(145deg, rgba(var(--phase-rgb), 1), rgba(var(--phase-rgb), 0.78));
+  box-shadow: 0 0 4cqw rgba(var(--phase-rgb), 0.32);
+}
+
+.miniPlay svg {
+  width: 6cqw;
+  height: 6cqw;
+}
+
+.miniPlay:hover {
+  transform: scale(1.05);
+}
+
+.miniPlay:active {
+  transform: scale(0.97);
+}
+
+.miniGhost {
+  width: 7cqw;
+  height: 7cqw;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+}
+
+.miniGhost svg {
+  width: 3.6cqw;
+  height: 3.6cqw;
+}
+
+.miniGhost:hover {
+  color: var(--text);
+  border-color: rgba(242, 236, 221, 0.28);
+}
+
+.miniFuse {
+  position: relative;
+  height: max(2px, 0.6cqw);
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.miniFuseBar {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(var(--phase-rgb), 0.12), var(--phase));
+  transform-origin: left center;
+  transition: transform 1s linear;
+}
+
+.miniFuseSpark {
+  position: absolute;
+  top: 50%;
+  width: 1.8cqw;
+  height: 1.8cqw;
+  border-radius: 50%;
+  background: #ffe6cf;
+  box-shadow: 0 0 2.6cqw 0.6cqw rgba(var(--phase-rgb), 0.85);
+  transform: translate(-50%, -50%);
+  opacity: 0.55;
+  transition: left 1s linear, opacity 300ms ease;
+}
+
+.mini.isRunning .miniFuseSpark {
+  opacity: 1;
+  animation: miniSpark 1.6s ease-in-out infinite;
+}
+
+.mini button:focus-visible {
+  outline: 2px solid var(--phase);
+  outline-offset: 2px;
+}
+
+@keyframes miniBreath {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes miniSpark {
+  0%,
+  100% {
+    box-shadow: 0 0 2.6cqw 0.6cqw rgba(var(--phase-rgb), 0.85);
+  }
+  50% {
+    box-shadow: 0 0 3.6cqw 1cqw rgba(var(--phase-rgb), 0.55);
+  }
+}
+
+@keyframes miniLabelIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.8cqw);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mini.isRunning .miniGlow,
+  .mini.isRunning .miniFuseSpark,
+  .miniLabel {
+    animation: none;
+  }
+
+  .miniFuseBar,
+  .miniFuseSpark {
+    transition: none;
+  }
+}

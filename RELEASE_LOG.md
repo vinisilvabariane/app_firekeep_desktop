@@ -8,6 +8,40 @@ Firekeep. Entradas historicas que antes apareciam como `1.0.0`, `1.0.1`,
 `1.1.0`, `1.2.0`, `1.3.0` e `1.4.0` foram reclassificadas como betas durante o
 desenvolvimento da versao estavel.
 
+## 1.0.4 - 2026-10-22
+
+Resumo: splash de abertura, miniplayer flutuante do Pomodoro com aviso sonoro
+na troca de tempo, e uma interface mais enxuta (sem a tela de Git e sem o
+widget de relogio).
+
+### Novidades
+
+- Splash de abertura: a chama do logo acende, o pavio queima enquanto o app
+  sobe e a janela principal aparece com fade. Fica no minimo 3 segundos e mostra
+  a etapa do carregamento e a versao. Respeita "reduzir movimento" do sistema.
+- Miniplayer do Pomodoro: janela flutuante e minimalista, sempre por cima de
+  outros apps (inclusive em tela cheia), com tempo, rodadas, iniciar/pausar,
+  pular e reiniciar. Abre pelo botao novo no widget do Pomodoro.
+  - Arrasta pelo corpo e redimensiona pelas bordas (proporcao 2:1 fixa; o
+    conteudo escala junto). Posicao e tamanho ficam salvos.
+  - Cor por fase: brasa no foco, menta no descanso.
+- Aviso sonoro na troca de tempo: sinos suaves sintetizados (descem ao entrar
+  no descanso, sobem ao voltar ao foco). Liga e desliga no widget e no
+  miniplayer; ao ligar toca uma amostra. Pular manualmente nao toca.
+- O relogio agora e uma linha discreta (dia e hora) no rodape do widget do
+  Pomodoro.
+
+### Correcoes e melhorias
+
+- O cronometro do Pomodoro passou a viver em um store proprio e a contar pelo
+  relogio real: continua correndo com o widget oculto e nao atrasa com a janela
+  em segundo plano.
+
+### Removido
+
+- Tela de Git (painel, servico e rotas `/api/git/*`).
+- Widget de relogio separado e a opcao de mostrar/ocultar relogio no dock.
+
 ## 1.0.3 - 2026-10-09
 
 Resumo: terminal integrado reescrito para rodar agentes de tela cheia

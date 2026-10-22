@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src 'self' file:; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <title>Firekeep</title>
+    <style>
+      :root {
+        --ink: #07080c;
+        --text: #f2ecdd;
+        --muted: rgba(242, 236, 221, 0.55);
+        --line: rgba(242, 236, 221, 0.12);
+        --ember: #ff8c42;
+        --ember-deep: #e5642b;
+        --ember-rgb: 255, 140, 66;
+        --display: "Fraunces", Georgia, "Times New Roman", serif;
+        --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+        --fuse-ms: 2600ms;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: transparent;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-app-region: drag;
+      }
+
+      .card {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-rows: 1fr auto;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background:
+          radial-gradient(90% 70% at 50% 120%, rgba(var(--ember-rgb), 0.3), transparent 62%),
+          linear-gradient(180deg, #0a0d16 0%, #0b0a10 58%, #140b0c 100%);
+        color: var(--text);
+        opacity: 0;
+        transform: scale(0.985);
+        animation: cardIn 420ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+      }
+
+      .card.leaving {
+        animation: cardOut 320ms cubic-bezier(0.4, 0, 1, 1) forwards;
+      }
+
+      /* Brasa de fundo: o mesmo "hearth" que a janela principal usa. */
+      .hearth {
+        position: absolute;
+        left: 50%;
+        bottom: -46%;
+        width: 120%;
+        height: 90%;
+        transform: translateX(-50%);
+        background: radial-gradient(50% 60% at 50% 100%, rgba(var(--ember-rgb), 0.45), rgba(var(--ember-rgb), 0.12) 44%, transparent 68%);
+        filter: blur(14px);
+        animation: breath 4.2s ease-in-out infinite;
+      }
+
+      .embers {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .ember {
+        position: absolute;
+        bottom: 18%;
+        left: var(--x);
+        width: var(--s);
+        height: var(--s);
+        border-radius: 50%;
+        background: rgb(var(--ember-rgb));
+        box-shadow: 0 0 8px 1px rgba(var(--ember-rgb), 0.8);
+        opacity: 0;
+        animation: rise var(--d) linear var(--delay) infinite;
+      }
+
+      .lockup {
+        position: relative;
+        z-index: 1;
+        align-self: center;
+        justify-self: center;
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        padding-top: 6px;
+      }
+
+      .mark {
+        position: relative;
+        width: 118px;
+        height: 148px;
+      }
+
+      .mark img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      .markGlow {
+        filter: blur(22px) saturate(1.4);
+        opacity: 0;
+        animation: glowIn 1500ms ease-out 300ms forwards, flicker 2.6s ease-in-out 1800ms infinite;
+      }
+
+      /* A chama acende de baixo para cima. */
+      .markLit {
+        -webkit-mask-image: linear-gradient(to top, #000 40%, transparent 60%);
+        mask-image: linear-gradient(to top, #000 40%, transparent 60%);
+        -webkit-mask-size: 100% 250%;
+        mask-size: 100% 250%;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: 0 0;
+        mask-position: 0 0;
+        animation: ignite 1300ms cubic-bezier(0.45, 0.05, 0.25, 1) 250ms forwards;
+      }
+
+      .words {
+        display: grid;
+        gap: 10px;
+      }
+
+      .name {
+        margin: 0;
+        font-family: var(--display);
+        font-size: 50px;
+        font-weight: 600;
+        line-height: 1;
+        letter-spacing: -0.025em;
+        opacity: 0;
+        transform: translateY(8px);
+        animation: wordIn 700ms cubic-bezier(0.2, 0.7, 0.2, 1) 900ms forwards;
+      }
+
+      .name span {
+        color: var(--ember);
+      }
+
+      .tagline {
+        margin: 0;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--muted);
+        opacity: 0;
+        animation: fade 700ms ease-out 1250ms forwards;
+      }
+
+      .foot {
+        position: relative;
+        z-index: 1;
+        padding: 0 28px 20px;
+      }
+
+      /* O pavio: preenche enquanto o app sobe e termina em uma faísca. */
+      .fuse {
+        position: relative;
+        height: 2px;
+        margin-bottom: 12px;
+        background: var(--line);
+        border-radius: 2px;
+      }
+
+      .fuseBar {
+        position: absolute;
+        inset: 0;
+        border-radius: 2px;
+        background: linear-gradient(90deg, rgba(var(--ember-rgb), 0.15), var(--ember));
+        transform-origin: left center;
+        transform: scaleX(0);
+        animation: burn var(--fuse-ms) cubic-bezier(0.35, 0.1, 0.25, 1) 200ms forwards;
+      }
+
+      .fuseSpark {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        width: 7px;
+        height: 7px;
+        margin: -3.5px 0 0 -3.5px;
+        border-radius: 50%;
+        background: #ffd9b8;
+        box-shadow: 0 0 12px 3px rgba(var(--ember-rgb), 0.9);
+        animation: sparkTravel var(--fuse-ms) cubic-bezier(0.35, 0.1, 0.25, 1) 200ms forwards;
+      }
+
+      .meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+      }
+
+      .stage::before {
+        content: "›";
+        margin-right: 8px;
+        color: var(--ember);
+      }
+
+      @keyframes cardIn {
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      @keyframes cardOut {
+        to {
+          opacity: 0;
+          transform: scale(1.02);
+        }
+      }
+      @keyframes breath {
+        0%,
+        100% {
+          opacity: 0.72;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+      @keyframes ignite {
+        to {
+          -webkit-mask-position: 0 100%;
+          mask-position: 0 100%;
+        }
+      }
+      @keyframes glowIn {
+        to {
+          opacity: 0.55;
+        }
+      }
+      @keyframes flicker {
+        0%,
+        100% {
+          opacity: 0.55;
+        }
+        38% {
+          opacity: 0.4;
+        }
+        62% {
+          opacity: 0.62;
+        }
+      }
+      @keyframes wordIn {
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes fade {
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes burn {
+        to {
+          transform: scaleX(1);
+        }
+      }
+      @keyframes sparkTravel {
+        to {
+          left: 100%;
+        }
+      }
+      @keyframes rise {
+        0% {
+          opacity: 0;
+          transform: translate(0, 0) scale(1);
+        }
+        15% {
+          opacity: 0.9;
+        }
+        100% {
+          opacity: 0;
+          transform: translate(var(--dx), -150px) scale(0.3);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .hearth,
+        .markGlow,
+        .ember {
+          animation: none;
+        }
+        .ember {
+          display: none;
+        }
+        .markLit {
+          animation-duration: 1ms;
+        }
+        .markGlow {
+          opacity: 0.5;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card" id="card">
+      <div class="hearth"></div>
+      <div class="embers" id="embers" aria-hidden="true"></div>
+
+      <section class="lockup">
+        <div class="mark" aria-hidden="true">
+          <img class="markGlow" src="../src/assets/logo-sem-fundo.png" alt="" />
+          <img class="markLit" src="../src/assets/logo-sem-fundo.png" alt="" />
+        </div>
+        <div class="words">
+          <h1 class="name">Fire<span>keep</span></h1>
+          <p class="tagline">Foco aceso. Terminal, música e tempo.</p>
+        </div>
+      </section>
+
+      <footer class="foot">
+        <div class="fuse" aria-hidden="true">
+          <div class="fuseBar"></div>
+          <div class="fuseSpark"></div>
+        </div>
+        <div class="meta">
+          <span class="stage" id="stage" role="status" aria-live="polite">Acendendo o servidor local</span>
+          <span id="version"></span>
+        </div>
+      </footer>
+    </main>
+
+    <script>
+      const params = new URLSearchParams(location.search);
+      const version = params.get("v");
+      if (version) document.getElementById("version").textContent = "v" + version;
+
+      const embers = document.getElementById("embers");
+      const COUNT = 14;
+      for (let i = 0; i < COUNT; i += 1) {
+        const el = document.createElement("span");
+        el.className = "ember";
+        el.style.setProperty("--x", 36 + Math.random() * 28 + "%");
+        el.style.setProperty("--s", 1.5 + Math.random() * 2.5 + "px");
+        el.style.setProperty("--d", 2.4 + Math.random() * 2.6 + "s");
+        el.style.setProperty("--delay", 0.6 + Math.random() * 3 + "s");
+        el.style.setProperty("--dx", (Math.random() - 0.5) * 70 + "px");
+        embers.appendChild(el);
+      }
+
+      // Chamados pelo processo principal conforme o app sobe.
+      window.setStage = (text) => {
+        document.getElementById("stage").textContent = text;
+      };
+      window.leave = () => {
+        document.getElementById("card").classList.add("leaving");
+      };
+    </script>
+  </body>
+</html>
